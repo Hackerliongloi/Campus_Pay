@@ -20,16 +20,10 @@ app.use(
 );
 
 // CORS setup
-const allowedOrigins = [process.env.ORIGIN].filter(Boolean);
 const corsOptions = {
   origin: function (origin, callback) {
-    if (!origin) return callback(null, true);
-    const isLocalhost = /^http:\/\/localhost:\d+$/.test(origin) || /^http:\/\/127\.0\.0\.1:\d+$/.test(origin);
-    if (isLocalhost || allowedOrigins.includes(origin)) {
-      callback(null, true);
-    } else {
-      callback(new Error('Not allowed by CORS'));
-    }
+    // Dynamically allow any origin (e.g. localhost, any production IP, etc.)
+    callback(null, true);
   },
   credentials: true,
 };
