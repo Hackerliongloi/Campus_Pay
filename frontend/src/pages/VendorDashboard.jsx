@@ -20,7 +20,7 @@ const VendorDashboard = () => {
   // Path helper to resolve local uploads or Cloudinary URLs
   const getImageUrl = (path) => {
     if (!path) return '';
-    return path.startsWith('http') ? path : `http://localhost:5001${path}`;
+    return path.startsWith('http') ? path : `${import.meta.env.VITE_API_URL || 'http://localhost:5001'}${path}`;
   };
   const [stats, setStats] = useState(null);
   const [transactions, setTransactions] = useState([]);
