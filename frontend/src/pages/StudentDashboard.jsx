@@ -60,7 +60,7 @@ const StudentDashboard = () => {
   const [success, setSuccess] = useState('');
   const [bioMock, setBioMock] = useState(true);
   const [downloadingPDF, setDownloadingPDF] = useState(false);
-  
+
   // Notification States
   const [notifications, setNotifications] = useState([]);
   const [showNotifications, setShowNotifications] = useState(false);
@@ -149,7 +149,7 @@ const StudentDashboard = () => {
       thisWeek: [],
       older: []
     };
-    
+
     const now = new Date();
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const yesterday = new Date(today);
@@ -169,7 +169,7 @@ const StudentDashboard = () => {
         groups.older.push(notif);
       }
     });
-    
+
     return groups;
   };
 
@@ -177,7 +177,7 @@ const StudentDashboard = () => {
     if (downloadingPDF) return;
     setDownloadingPDF(true);
     setError('');
-    
+
     try {
       // 1. Fetch all transactions (limit=1000) so we have a full history
       const response = await fetch('/api/wallet/history?limit=1000', {
@@ -217,7 +217,7 @@ const StudentDashboard = () => {
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(22);
       doc.text('CAMPUS PAY', 15, 18);
-      
+
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(10);
       doc.setTextColor(199, 210, 254); // Light indigo text
@@ -228,13 +228,13 @@ const StudentDashboard = () => {
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(11);
       doc.text('TRANSACTION STATEMENT', pageWidth - 15, 18, { align: 'right' });
-      
+
       const todayStr = new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' });
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(9);
       doc.setTextColor(199, 210, 254);
       doc.text(`Generated: ${todayStr}`, pageWidth - 15, 24, { align: 'right' });
-      
+
       const txnRef = 'CP-' + Math.floor(100000 + Math.random() * 900000);
       doc.text(`Ref: ${txnRef}`, pageWidth - 15, 29, { align: 'right' });
 
@@ -258,7 +258,7 @@ const StudentDashboard = () => {
       doc.text(`Email: ${user?.email || 'N/A'}`, 20, y + 24);
 
       doc.text(`Current Balance: INR ${user?.walletBalance?.toFixed(2) || '0.00'}`, pageWidth - 20, y + 16, { align: 'right' });
-      
+
       // Frozen Tag
       doc.setFillColor(accentColor[0], accentColor[1], accentColor[2]);
       doc.rect(pageWidth - 55, y + 20, 35, 6, 'F');
@@ -379,7 +379,7 @@ const StudentDashboard = () => {
           doc.text(typeStr, 45, y + 5);
           doc.text(partyStr, 70, y + 5);
           doc.text(txn.status?.toUpperCase() || 'SUCCESS', 145, y + 5);
-          
+
           if (isSend) {
             doc.setTextColor(190, 24, 74); // Rose color for debit
             doc.text(`- INR ${txn.amount.toFixed(2)}`, pageWidth - 18, y + 5, { align: 'right' });
@@ -432,7 +432,7 @@ const StudentDashboard = () => {
       const disclaimer = 'This is an official computer-generated statement of transactions from your Campus Pay Account. ' +
         'Since this account is currently frozen, outgoing transactions are suspended. ' +
         'For disputes, activation requests, or support, write to support@campuspay.com.';
-      
+
       // Wrap text in width
       const splitDisclaimer = doc.splitTextToSize(disclaimer, pageWidth - 30);
       doc.text(splitDisclaimer, 15, pageHeight - 25);
@@ -688,7 +688,7 @@ const StudentDashboard = () => {
     <div className="mobile-app-container">
       <div className="mobile-app-shell overflow-hidden">
         <div className="mobile-notch"></div>
-        
+
         {/* Sleek Premium Header */}
         <header className="px-4 pt-7 pb-4 bg-[#0e091c]/80 backdrop-blur-md text-white flex items-center justify-between border-b border-white/5 relative z-30 shrink-0">
           <div className="flex items-center gap-2.5">
@@ -724,7 +724,7 @@ const StudentDashboard = () => {
               </p>
             </div>
           </div>
-          
+
           <div className="flex items-center gap-1.5">
             <button
               onClick={() => user?.kycStatus === 'approved' ? setActiveTab('notifications') : null}
@@ -748,7 +748,7 @@ const StudentDashboard = () => {
 
         {/* Mobile Viewport Content */}
         <div className="mobile-content bg-[#0b0816] p-4 pb-24">
-          
+
           {/* TAB 1: Wallet Balance & Actions */}
           {activeTab === 'wallet' && (
             <div className="space-y-4.5 animate-fade-in">
@@ -803,7 +803,7 @@ const StudentDashboard = () => {
               <div className="card-holographic rounded-[24px] p-6 shadow-2xl text-white relative flex flex-col justify-between h-44 overflow-hidden group border border-white/5">
                 {/* Reflective shine element */}
                 <div className="absolute inset-0 bg-gradient-to-tr from-white/0 via-white/5 to-white/0 transform -skew-x-12 translate-x-[-150%] group-hover:translate-x-[150%] transition-transform duration-1000 ease-out"></div>
-                
+
                 <div className="flex justify-between items-start relative z-10">
                   <div className="space-y-1">
                     <span className="text-[9px] text-blue-300 font-bold uppercase tracking-widest pl-0.5">CampusPay Smart Card</span>
@@ -853,9 +853,8 @@ const StudentDashboard = () => {
                       setScanning(true);
                     }}
                     disabled={user?.status === 'frozen'}
-                    className={`action-grid-card flex flex-col items-center justify-center p-3 text-center cursor-pointer ${
-                      user?.status === 'frozen' ? 'opacity-40 cursor-not-allowed' : ''
-                    }`}
+                    className={`action-grid-card flex flex-col items-center justify-center p-3 text-center cursor-pointer ${user?.status === 'frozen' ? 'opacity-40 cursor-not-allowed' : ''
+                      }`}
                   >
                     <div className="w-10 h-10 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-400 mb-2">
                       <QrCode size={18} />
@@ -873,9 +872,8 @@ const StudentDashboard = () => {
                       setShowSendModal(true);
                     }}
                     disabled={user?.status === 'frozen'}
-                    className={`action-grid-card flex flex-col items-center justify-center p-3 text-center cursor-pointer ${
-                      user?.status === 'frozen' ? 'opacity-40 cursor-not-allowed' : ''
-                    }`}
+                    className={`action-grid-card flex flex-col items-center justify-center p-3 text-center cursor-pointer ${user?.status === 'frozen' ? 'opacity-40 cursor-not-allowed' : ''
+                      }`}
                   >
                     <div className="w-10 h-10 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-400 mb-2">
                       <Send size={18} />
@@ -910,10 +908,9 @@ const StudentDashboard = () => {
                       return (
                         <div key={txn._id} className="p-3 flex items-center justify-between hover:bg-white/2 transition-colors">
                           <div className="flex items-center gap-2.5 min-w-0">
-                            <div className={`p-2 rounded-xl border shrink-0 ${
-                              isAdd ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' :
-                              isSend ? 'bg-rose-500/10 border-rose-500/20 text-rose-400' : 'bg-blue-500/10 border-blue-500/20 text-blue-400'
-                            }`}>
+                            <div className={`p-2 rounded-xl border shrink-0 ${isAdd ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' :
+                                isSend ? 'bg-rose-500/10 border-rose-500/20 text-rose-400' : 'bg-blue-500/10 border-blue-500/20 text-blue-400'
+                              }`}>
                               {isAdd ? <ArrowDownLeft size={14} /> : <ArrowUpRight size={14} />}
                             </div>
                             <div className="min-w-0">
@@ -951,10 +948,9 @@ const StudentDashboard = () => {
                     return (
                       <div key={txn._id} className="p-3 flex items-center justify-between hover:bg-white/2 transition-colors gap-3">
                         <div className="flex items-center gap-2.5 min-w-0">
-                          <div className={`p-2 rounded-xl border shrink-0 ${
-                            isAdd ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' :
-                            isSend ? 'bg-red-500/10 border-red-500/20 text-red-400' : 'bg-blue-500/10 border-blue-500/20 text-blue-400'
-                          }`}>
+                          <div className={`p-2 rounded-xl border shrink-0 ${isAdd ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' :
+                              isSend ? 'bg-red-500/10 border-red-500/20 text-red-400' : 'bg-blue-500/10 border-blue-500/20 text-blue-400'
+                            }`}>
                             {isAdd ? <ArrowDownLeft size={14} /> : <ArrowUpRight size={14} />}
                           </div>
                           <div className="min-w-0">
@@ -1092,66 +1088,66 @@ const StudentDashboard = () => {
                   </div>
                 </div>
                 <div className="flex items-center gap-2 bg-gray-950/60 border border-white/5 rounded-xl px-2.5 py-1.5 w-full">
-                    <Search size={12} className="text-gray-400 shrink-0" />
-                    <input
-                      type="text"
-                      placeholder="Search tickets..."
-                      value={complaintsSearch}
-                      onChange={(e) => setComplaintsSearch(e.target.value)}
-                      className="bg-transparent border-none outline-none text-[10px] text-white placeholder-gray-500 w-full"
-                    />
-                  </div>
-                </div>
-
-                <div className="space-y-3.5 max-h-[360px] overflow-y-auto pr-1">
-                  {(() => {
-                    const filtered = complaints.filter((comp) => {
-                      if (!complaintsSearch) return true;
-                      const query = complaintsSearch.toLowerCase();
-                      return (
-                        comp.title?.toLowerCase().includes(query) ||
-                        comp.description?.toLowerCase().includes(query) ||
-                        comp.status?.toLowerCase().includes(query)
-                      );
-                    });
-
-                    return filtered.length === 0 ? (
-                      <div className="py-6 text-center text-gray-500 text-xs">
-                        {complaintsSearch ? 'No matching tickets found.' : 'No support tickets raised.'}
-                      </div>
-                    ) : (
-                      filtered.map((comp) => (
-                        <div key={comp._id} className="border border-white/5 bg-gray-950/20 rounded-2xl p-3 space-y-2 hover:border-white/10 transition-all">
-                          <div className="flex justify-between items-start">
-                            <div className="min-w-0">
-                              <h4 className="font-bold text-xs text-white truncate">{comp.title}</h4>
-                              <span className="text-[8px] text-gray-500 font-mono block mt-0.5">{new Date(comp.createdAt).toLocaleString()}</span>
-                            </div>
-                            <span className={`text-[8px] uppercase font-bold px-1.5 py-0.5 rounded-full ${
-                              comp.status === 'open' ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20' : 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
-                            }`}>
-                              {comp.status}
-                            </span>
-                          </div>
-                          <p className="text-[10px] text-gray-400 bg-gray-950/40 p-2.5 rounded-xl italic">"{comp.description}"</p>
-                          {comp.screenshot && (
-                            <a href={getImageUrl(comp.screenshot)} target="_blank" rel="noreferrer" className="inline-block text-[9px] text-purple-400 hover:underline">
-                              View Attachment
-                            </a>
-                          )}
-                          {comp.status === 'resolved' && comp.response && (
-                            <div className="bg-emerald-950/10 border border-emerald-500/10 p-2 rounded-xl text-[9px]">
-                              <span className="text-[8px] text-emerald-400 font-bold block uppercase tracking-wider mb-0.5">Resolution</span>
-                              <p className="text-gray-300 italic">"{comp.response}"</p>
-                            </div>
-                          )}
-                        </div>
-                      ))
-                    );
-                  })()}
+                  <Search size={12} className="text-gray-400 shrink-0" />
+                  <input
+                    type="text"
+                    placeholder="Search tickets..."
+                    value={complaintsSearch}
+                    onChange={(e) => setComplaintsSearch(e.target.value)}
+                    className="bg-transparent border-none outline-none text-[10px] text-white placeholder-gray-500 w-full"
+                  />
                 </div>
               </div>
+
+              <div className="space-y-3.5 max-h-[360px] overflow-y-auto pr-1">
+                {(() => {
+                  const filtered = complaints.filter((comp) => {
+                    if (!complaintsSearch) return true;
+                    const query = complaintsSearch.toLowerCase();
+                    return (
+                      comp.title?.toLowerCase().includes(query) ||
+                      comp.description?.toLowerCase().includes(query) ||
+                      comp.status?.toLowerCase().includes(query)
+                    );
+                  });
+
+                  return filtered.length === 0 ? (
+                    <div className="py-6 text-center text-gray-500 text-xs">
+                      {complaintsSearch ? 'No matching tickets found.' : 'No support tickets raised.'}
+                    </div>
+                  ) : (
+                    filtered.map((comp) => (
+                      <div key={comp._id} className="border border-white/5 bg-gray-950/20 rounded-2xl p-3 space-y-2 hover:border-white/10 transition-all">
+                        <div className="flex justify-between items-start">
+                          <div className="min-w-0">
+                            <h4 className="font-bold text-xs text-white truncate">{comp.title}</h4>
+                            <span className="text-[8px] text-gray-500 font-mono block mt-0.5">{new Date(comp.createdAt).toLocaleString()}</span>
+                          </div>
+                          <span className={`text-[8px] uppercase font-bold px-1.5 py-0.5 rounded-full ${comp.status === 'open' ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20' : 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                            }`}>
+                            {comp.status}
+                          </span>
+                        </div>
+                        <p className="text-[10px] text-gray-400 bg-gray-950/40 p-2.5 rounded-xl italic">"{comp.description}"</p>
+                        {comp.screenshot && (
+                          <a href={getImageUrl(comp.screenshot)} target="_blank" rel="noreferrer" className="inline-block text-[9px] text-purple-400 hover:underline">
+                            View Attachment
+                          </a>
+                        )}
+                        {comp.status === 'resolved' && comp.response && (
+                          <div className="bg-emerald-950/10 border border-emerald-500/10 p-2 rounded-xl text-[9px]">
+                            <span className="text-[8px] text-emerald-400 font-bold block uppercase tracking-wider mb-0.5">Resolution</span>
+                            <p className="text-gray-300 italic">"{comp.response}"</p>
+                          </div>
+                        )}
+                      </div>
+                    ))
+                  );
+                })()}
+              </div>
             </div>
+
+
           )}
 
           {/* TAB 4: Biometric Enrollment Controls */}
@@ -1240,17 +1236,15 @@ const StudentDashboard = () => {
                             <div
                               key={notif._id}
                               onClick={() => !notif.isRead && markNotificationRead(notif._id)}
-                              className={`pt-2.5 first:pt-0 flex items-start justify-between gap-3 group transition-all rounded-lg cursor-pointer ${
-                                notif.isRead ? 'opacity-60' : ''
-                              }`}
+                              className={`pt-2.5 first:pt-0 flex items-start justify-between gap-3 group transition-all rounded-lg cursor-pointer ${notif.isRead ? 'opacity-60' : ''
+                                }`}
                             >
                               <div className="flex gap-2.5 min-w-0">
-                                <div className={`p-2 rounded-xl border shrink-0 flex items-center justify-center h-8 w-8 ${
-                                  notif.type === 'transaction' ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' :
-                                  notif.type === 'kyc' ? 'bg-blue-500/10 border-blue-500/20 text-blue-400' :
-                                  notif.type === 'complaint' ? 'bg-amber-500/10 border-amber-500/20 text-amber-400' :
-                                  'bg-rose-500/10 border-rose-500/20 text-rose-400'
-                                }`}>
+                                <div className={`p-2 rounded-xl border shrink-0 flex items-center justify-center h-8 w-8 ${notif.type === 'transaction' ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' :
+                                    notif.type === 'kyc' ? 'bg-blue-500/10 border-blue-500/20 text-blue-400' :
+                                      notif.type === 'complaint' ? 'bg-amber-500/10 border-amber-500/20 text-amber-400' :
+                                        'bg-rose-500/10 border-rose-500/20 text-rose-400'
+                                  }`}>
                                   <Bell size={12} />
                                 </div>
                                 <div className="min-w-0 space-y-0.5">
@@ -1284,20 +1278,18 @@ const StudentDashboard = () => {
           <button
             onClick={() => user?.kycStatus === 'approved' ? setActiveTab('wallet') : null}
             style={{ opacity: user?.kycStatus === 'approved' ? 1 : 0.4 }}
-            className={`flex flex-col items-center gap-1 cursor-pointer transition-all focus:outline-none ${
-              activeTab === 'wallet' ? 'text-[#b983ff]' : 'text-gray-500'
-            }`}
+            className={`flex flex-col items-center gap-1 cursor-pointer transition-all focus:outline-none ${activeTab === 'wallet' ? 'text-[#b983ff]' : 'text-gray-500'
+              }`}
           >
             <Wallet size={16} />
             <span className="text-[8px] font-extrabold uppercase tracking-wide">Home</span>
           </button>
-          
+
           <button
             onClick={() => user?.kycStatus === 'approved' ? setActiveTab('history') : null}
             style={{ opacity: user?.kycStatus === 'approved' ? 1 : 0.4 }}
-            className={`flex flex-col items-center gap-1 cursor-pointer transition-all focus:outline-none ${
-              activeTab === 'history' ? 'text-[#b983ff]' : 'text-gray-500'
-            }`}
+            className={`flex flex-col items-center gap-1 cursor-pointer transition-all focus:outline-none ${activeTab === 'history' ? 'text-[#b983ff]' : 'text-gray-500'
+              }`}
           >
             <History size={16} />
             <span className="text-[8px] font-extrabold uppercase tracking-wide">History</span>
@@ -1306,9 +1298,8 @@ const StudentDashboard = () => {
 
           <button
             onClick={() => setActiveTab('complaint-history')}
-            className={`flex flex-col items-center gap-1 cursor-pointer transition-all focus:outline-none ${
-              activeTab === 'complaint-history' ? 'text-[#b983ff]' : 'text-gray-500'
-            }`}
+            className={`flex flex-col items-center gap-1 cursor-pointer transition-all focus:outline-none ${activeTab === 'complaint-history' ? 'text-[#b983ff]' : 'text-gray-500'
+              }`}
           >
             <MessageSquare size={16} />
             <span className="text-[8px] font-extrabold uppercase tracking-wide">Tickets</span>
