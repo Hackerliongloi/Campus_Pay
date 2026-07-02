@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import {
   Users, Landmark, MessageSquare, ShieldAlert, TrendingUp, Settings,
-  LogOut, Shield, ShieldCheck, XCircle, Ban, Check, Eye, UserPlus, HelpCircle, Upload, Search, History, Bell, Trash2, PlusCircle, Megaphone
+  LogOut, Shield, ShieldCheck, XCircle, Ban, Check, Eye, UserPlus, HelpCircle, Upload, Search, History, Bell, Trash2, PlusCircle, Megaphone,
+  Coins
 } from 'lucide-react';
 import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend } from 'chart.js';
 import { Bar } from 'react-chartjs-2';
@@ -133,9 +134,21 @@ const AdminDashboard = () => {
   const [targetUser, setTargetUser] = useState(null);
   const [newMpin, setNewMpin] = useState('');
 
-  const [showAllocateModal, setShowAllocateModal] = useState(false);
-  const [allocateAmount, setAllocateAmount] = useState('');
-  const [allocateDesc, setAllocateDesc] = useState('');
+
+
+  // Inspect Modal & Institute Funds state
+  const [inspectUser, setInspectUser] = useState(null);
+  const [showInspectModal, setShowInspectModal] = useState(false);
+  const [instituteFundsHistory, setInstituteFundsHistory] = useState([]);
+  const [instituteFundsLoading, setInstituteFundsLoading] = useState(false);
+  const [addFundsAmount, setAddFundsAmount] = useState('');
+  const [addFundsDescription, setAddFundsDescription] = useState('');
+  const [instituteFundsSearch, setInstituteFundsSearch] = useState('');
+
+  // Notifications Log state
+  const [notificationsLog, setNotificationsLog] = useState([]);
+  const [notificationsLogSearch, setNotificationsLogSearch] = useState('');
+  const [notificationsLogLoading, setNotificationsLogLoading] = useState(false);
 
   const [showSubadminModal, setShowSubadminModal] = useState(false);
   const [subName, setSubName] = useState('');
@@ -191,10 +204,20 @@ const AdminDashboard = () => {
   // Load database entities
   useEffect(() => {
     fetchAnalytics();
-    fetchUsers();
     fetchComplaints();
     fetchRedeemRequests();
   }, [activePanel]);
+
+  // Fetch users when activePanel or roleFilter changes
+  useEffect(() => {
+    fetchUsers();
+    if (activePanel === 'institute-funds') {
+      fetchInstituteFundsHistory();
+    }
+    if (activePanel === 'notifications-log') {
+      fetchNotificationsLog();
+    }
+  }, [activePanel, roleFilter]);
 
   const fetchAnalytics = async () => {
     try {
@@ -216,7 +239,7 @@ const AdminDashboard = () => {
       const params = [];
       const activeRoleFilter = activePanel === 'subadmins'
         ? 'subadmin'
-        : (user?.role === 'subadmin' ? 'student' : roleFilter);
+        : (activePanel === 'kyc' ? '' : (user?.role === 'subadmin' ? 'student' : roleFilter));
       if (activeRoleFilter) params.push(`role=${activeRoleFilter}`);
       if (searchQuery) params.push(`search=${searchQuery}`);
       if (params.length) url += `?${params.join('&')}`;
@@ -258,6 +281,86 @@ const AdminDashboard = () => {
       }
     } catch (err) {
       console.error(err);
+    }
+  };
+
+  const fetchInstituteFundsHistory = async () => {
+    try {
+      setInstituteFundsLoading(true);
+      let url = '/api/admin/institute-funds/history';
+      if (instituteFundsSearch) {
+        url += `?search=${encodeURIComponent(instituteFundsSearch)}`;
+      }
+      const res = await fetch(url, {
+        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+      });
+      const data = await res.json();
+      if (data.success) {
+        setInstituteFundsHistory(data.history);
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setInstituteFundsLoading(false);
+    }
+  };
+
+  const handleAddInstituteFundsSubmit = async (e) => {
+    e.preventDefault();
+    if (!addFundsAmount) return;
+    setError('');
+    setSuccess('');
+    setInstituteFundsLoading(true);
+
+    try {
+      const res = await fetch('/api/admin/add-institute-funds', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${localStorage.getItem('token')}`,
+        },
+        body: JSON.stringify({
+          amount: addFundsAmount,
+          description: addFundsDescription,
+        }),
+      });
+
+      const data = await res.json();
+      if (data.success) {
+        setSuccess(`Successfully loaded ₹${parseFloat(addFundsAmount).toFixed(2)} to central Institute Balance!`);
+        setAddFundsAmount('');
+        setAddFundsDescription('');
+        fetchAnalytics(); // Refresh analytics card balance
+        fetchInstituteFundsHistory(); // Refresh history log
+        setTimeout(() => setSuccess(''), 2500);
+      } else {
+        setError(data.error || 'Failed to add institute funds');
+      }
+    } catch (err) {
+      setError('Network communication failed');
+    } finally {
+      setInstituteFundsLoading(false);
+    }
+  };
+
+  const fetchNotificationsLog = async () => {
+    try {
+      setNotificationsLogLoading(true);
+      let url = `/api/admin/notifications`;
+      if (notificationsLogSearch) {
+        url += `?search=${encodeURIComponent(notificationsLogSearch)}`;
+      }
+      const res = await fetch(url, {
+        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+      });
+      const data = await res.json();
+      if (data.success) {
+        setNotificationsLog(data.notifications || []);
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setNotificationsLogLoading(false);
     }
   };
 
@@ -375,46 +478,7 @@ const AdminDashboard = () => {
     }
   };
 
-  // Handle Add Institute Balance
-  const handleAllocateFundsSubmit = async (e) => {
-    e.preventDefault();
-    if (!targetUser || !allocateAmount) return;
-    setError('');
-    setSuccess('');
-    setLoading(true);
 
-    try {
-      const response = await fetch('/api/admin/add-balance', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${localStorage.getItem('token')}`,
-        },
-        body: JSON.stringify({
-          studentId: targetUser._id,
-          amount: allocateAmount,
-          description: allocateDesc,
-        }),
-      });
-
-      const data = await response.json();
-      if (data.success) {
-        setSuccess(`Successfully added ₹${allocateAmount} to ${targetUser.name}'s institute balance!`);
-        setAllocateAmount('');
-        setAllocateDesc('');
-        setShowAllocateModal(false);
-        setTargetUser(null);
-        fetchUsers(); // Refresh balance inside table
-        setTimeout(() => setSuccess(''), 2000);
-      } else {
-        setError(data.error || 'Failed to add institute balance');
-      }
-    } catch (err) {
-      setError('Network communication failed');
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const handleRemoveSubadmin = async (subadminId) => {
     if (!window.confirm('Are you sure you want to permanently delete this sub-admin account?')) return;
@@ -648,7 +712,7 @@ const AdminDashboard = () => {
   };
 
   // Filter lists helper
-  const pendingKycUsers = usersList.filter((u) => u.role === 'student' && u.kycStatus === 'pending');
+  const pendingKycUsers = usersList.filter((u) => (u.role === 'student' || u.role === 'vendor') && u.kycStatus === 'pending');
 
   return (
     <div className="min-h-screen bg-[#0B0F19] text-gray-200">
@@ -702,8 +766,10 @@ const AdminDashboard = () => {
           {user?.role !== 'subadmin' && (
             <button
               onClick={() => setActivePanel('analytics')}
-              className={`w-full text-left py-3 px-4 rounded-xl flex items-center gap-3 font-semibold text-sm transition-all cursor-pointer ${
-                activePanel === 'analytics' ? 'bg-indigo-600 text-white shadow-lg' : 'text-gray-400 hover:text-white hover:bg-white/5'
+              className={`w-full text-left py-3 px-4 rounded-xl flex items-center gap-3 font-semibold text-sm transition-all cursor-pointer border ${
+                activePanel === 'analytics'
+                  ? 'bg-gradient-to-r from-[#2563eb] to-[#1d4ed8] text-white shadow-lg shadow-[#1d4ed8]/20 border-white/10'
+                  : 'text-gray-400 border-transparent hover:text-white hover:bg-white/5'
               }`}
             >
               <TrendingUp size={18} />
@@ -712,20 +778,37 @@ const AdminDashboard = () => {
           )}
           <button
             onClick={() => setActivePanel('users')}
-            className={`w-full text-left py-3 px-4 rounded-xl flex items-center gap-3 font-semibold text-sm transition-all cursor-pointer ${
-              activePanel === 'users' ? 'bg-indigo-600 text-white shadow-lg' : 'text-gray-400 hover:text-white hover:bg-white/5'
+            className={`w-full text-left py-3 px-4 rounded-xl flex items-center gap-3 font-semibold text-sm transition-all cursor-pointer border ${
+              activePanel === 'users'
+                ? 'bg-gradient-to-r from-[#2563eb] to-[#1d4ed8] text-white shadow-lg shadow-[#1d4ed8]/20 border-white/10'
+                : 'text-gray-400 border-transparent hover:text-white hover:bg-white/5'
             }`}
           >
             <Users size={18} />
             <span>{user?.role === 'subadmin' ? 'Student Directory' : 'Students & Vendors'}</span>
           </button>
+          {user?.role === 'admin' && (
+            <button
+              onClick={() => setActivePanel('institute-funds')}
+              className={`w-full text-left py-3 px-4 rounded-xl flex items-center gap-3 font-semibold text-sm transition-all cursor-pointer border ${
+                activePanel === 'institute-funds'
+                  ? 'bg-gradient-to-r from-[#2563eb] to-[#1d4ed8] text-white shadow-lg shadow-[#1d4ed8]/20 border-white/10'
+                  : 'text-gray-400 border-transparent hover:text-white hover:bg-white/5'
+              }`}
+            >
+              <Coins size={18} />
+              <span>Institute Funds</span>
+            </button>
+          )}
           <button
             onClick={() => {
               setTransactionsPage(1);
               setActivePanel('transactions');
             }}
-            className={`w-full text-left py-3 px-4 rounded-xl flex items-center gap-3 font-semibold text-sm transition-all cursor-pointer ${
-              activePanel === 'transactions' ? 'bg-indigo-600 text-white shadow-lg' : 'text-gray-400 hover:text-white hover:bg-white/5'
+            className={`w-full text-left py-3 px-4 rounded-xl flex items-center gap-3 font-semibold text-sm transition-all cursor-pointer border ${
+              activePanel === 'transactions'
+                ? 'bg-gradient-to-r from-[#2563eb] to-[#1d4ed8] text-white shadow-lg shadow-[#1d4ed8]/20 border-white/10'
+                : 'text-gray-400 border-transparent hover:text-white hover:bg-white/5'
             }`}
           >
             <History size={18} />
@@ -733,8 +816,10 @@ const AdminDashboard = () => {
           </button>
           <button
             onClick={() => setActivePanel('kyc')}
-            className={`w-full text-left py-3 px-4 rounded-xl flex items-center justify-between font-semibold text-sm transition-all cursor-pointer ${
-              activePanel === 'kyc' ? 'bg-indigo-600 text-white shadow-lg' : 'text-gray-400 hover:text-white hover:bg-white/5'
+            className={`w-full text-left py-3 px-4 rounded-xl flex items-center justify-between font-semibold text-sm transition-all cursor-pointer border ${
+              activePanel === 'kyc'
+                ? 'bg-gradient-to-r from-[#2563eb] to-[#1d4ed8] text-white shadow-lg shadow-[#1d4ed8]/20 border-white/10'
+                : 'text-gray-400 border-transparent hover:text-white hover:bg-white/5'
             }`}
           >
             <div className="flex items-center gap-3">
@@ -749,8 +834,10 @@ const AdminDashboard = () => {
           </button>
           <button
             onClick={() => setActivePanel('complaints')}
-            className={`w-full text-left py-3 px-4 rounded-xl flex items-center justify-between font-semibold text-sm transition-all cursor-pointer ${
-              activePanel === 'complaints' ? 'bg-indigo-600 text-white shadow-lg' : 'text-gray-400 hover:text-white hover:bg-white/5'
+            className={`w-full text-left py-3 px-4 rounded-xl flex items-center justify-between font-semibold text-sm transition-all cursor-pointer border ${
+              activePanel === 'complaints'
+                ? 'bg-gradient-to-r from-[#2563eb] to-[#1d4ed8] text-white shadow-lg shadow-[#1d4ed8]/20 border-white/10'
+                : 'text-gray-400 border-transparent hover:text-white hover:bg-white/5'
             }`}
           >
             <div className="flex items-center gap-3">
@@ -766,8 +853,10 @@ const AdminDashboard = () => {
 
           <button
             onClick={() => setActivePanel('complaints-history')}
-            className={`w-full text-left py-3 px-4 rounded-xl flex items-center justify-between font-semibold text-sm transition-all cursor-pointer ${
-              activePanel === 'complaints-history' ? 'bg-indigo-600 text-white shadow-lg' : 'text-gray-400 hover:text-white hover:bg-white/5'
+            className={`w-full text-left py-3 px-4 rounded-xl flex items-center justify-between font-semibold text-sm transition-all cursor-pointer border ${
+              activePanel === 'complaints-history'
+                ? 'bg-gradient-to-r from-[#2563eb] to-[#1d4ed8] text-white shadow-lg shadow-[#1d4ed8]/20 border-white/10'
+                : 'text-gray-400 border-transparent hover:text-white hover:bg-white/5'
             }`}
           >
             <div className="flex items-center gap-3">
@@ -784,8 +873,10 @@ const AdminDashboard = () => {
           {user?.role !== 'subadmin' && (
             <button
               onClick={() => setActivePanel('redemptions')}
-              className={`w-full text-left py-3 px-4 rounded-xl flex items-center justify-between font-semibold text-sm transition-all cursor-pointer ${
-                activePanel === 'redemptions' ? 'bg-indigo-600 text-white shadow-lg' : 'text-gray-400 hover:text-white hover:bg-white/5'
+              className={`w-full text-left py-3 px-4 rounded-xl flex items-center justify-between font-semibold text-sm transition-all cursor-pointer border ${
+                activePanel === 'redemptions'
+                  ? 'bg-gradient-to-r from-[#2563eb] to-[#1d4ed8] text-white shadow-lg shadow-[#1d4ed8]/20 border-white/10'
+                  : 'text-gray-400 border-transparent hover:text-white hover:bg-white/5'
               }`}
             >
               <div className="flex items-center gap-3">
@@ -803,8 +894,10 @@ const AdminDashboard = () => {
           {user?.role === 'admin' && (
             <button
               onClick={() => setActivePanel('broadcast-hub')}
-              className={`w-full text-left py-3 px-4 rounded-xl flex items-center gap-3 font-semibold text-sm transition-all cursor-pointer ${
-                activePanel === 'broadcast-hub' ? 'bg-indigo-600 text-white shadow-lg' : 'text-gray-400 hover:text-white hover:bg-white/5'
+              className={`w-full text-left py-3 px-4 rounded-xl flex items-center gap-3 font-semibold text-sm transition-all cursor-pointer border ${
+                activePanel === 'broadcast-hub'
+                  ? 'bg-gradient-to-r from-[#2563eb] to-[#1d4ed8] text-white shadow-lg shadow-[#1d4ed8]/20 border-white/10'
+                  : 'text-gray-400 border-transparent hover:text-white hover:bg-white/5'
               }`}
             >
               <Megaphone size={18} />
@@ -815,8 +908,10 @@ const AdminDashboard = () => {
           {user?.role === 'subadmin' && (
             <button
               onClick={() => setActivePanel('notifications-hub')}
-              className={`w-full text-left py-3 px-4 rounded-xl flex items-center justify-between font-semibold text-sm transition-all cursor-pointer ${
-                activePanel === 'notifications-hub' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/15' : 'text-gray-400 hover:text-white hover:bg-white/5'
+              className={`w-full text-left py-3 px-4 rounded-xl flex items-center justify-between font-semibold text-sm transition-all cursor-pointer border ${
+                activePanel === 'notifications-hub'
+                  ? 'bg-gradient-to-r from-[#2563eb] to-[#1d4ed8] text-white shadow-lg shadow-[#1d4ed8]/20 border-white/10'
+                  : 'text-gray-400 border-transparent hover:text-white hover:bg-white/5'
               }`}
             >
               <div className="flex items-center gap-3">
@@ -835,12 +930,29 @@ const AdminDashboard = () => {
           {user?.role === 'admin' && (
             <button
               onClick={() => setActivePanel('subadmins')}
-              className={`w-full text-left py-3 px-4 rounded-xl flex items-center gap-3 font-semibold text-sm transition-all cursor-pointer ${
-                activePanel === 'subadmins' ? 'bg-indigo-600 text-white shadow-lg' : 'text-gray-400 hover:text-white hover:bg-white/5'
+              className={`w-full text-left py-3 px-4 rounded-xl flex items-center gap-3 font-semibold text-sm transition-all cursor-pointer border ${
+                activePanel === 'subadmins'
+                  ? 'bg-gradient-to-r from-[#2563eb] to-[#1d4ed8] text-white shadow-lg shadow-[#1d4ed8]/20 border-white/10'
+                  : 'text-gray-400 border-transparent hover:text-white hover:bg-white/5'
               }`}
             >
               <Settings size={18} />
               <span>Manage Sub-Admins</span>
+            </button>
+          )}
+          {user?.role === 'admin' && (
+            <button
+              onClick={() => setActivePanel('notifications-log')}
+              className={`w-full text-left py-3 px-4 rounded-xl flex items-center justify-between font-semibold text-sm transition-all cursor-pointer border ${
+                activePanel === 'notifications-log'
+                  ? 'bg-gradient-to-r from-[#2563eb] to-[#1d4ed8] text-white shadow-lg shadow-[#1d4ed8]/20 border-white/10'
+                  : 'text-gray-400 border-transparent hover:text-white hover:bg-white/5'
+              }`}
+            >
+              <div className="flex items-center gap-3">
+                <Bell size={18} />
+                <span>Notification Logs</span>
+              </div>
             </button>
           )}
         </div>
@@ -855,7 +967,7 @@ const AdminDashboard = () => {
           {activePanel === 'analytics' && user?.role !== 'subadmin' && (
             <div className="space-y-8 animate-fade-in">
               {/* Summary Stats count */}
-              <div className={`grid grid-cols-2 ${user?.role === 'subadmin' ? 'lg:grid-cols-3' : 'lg:grid-cols-4'} gap-4`}>
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
                 <div className="glass-panel border border-white/5 p-4 rounded-2xl">
                   <span className="text-[10px] text-gray-500 font-bold uppercase">Students Enrolled</span>
                   <h3 className="text-2xl font-extrabold text-white mt-1">{analytics?.users?.students || 0}</h3>
@@ -866,6 +978,10 @@ const AdminDashboard = () => {
                     <h3 className="text-2xl font-extrabold text-white mt-1">{analytics?.users?.vendors || 0}</h3>
                   </div>
                 )}
+                <div className="glass-panel border border-white/5 p-4 rounded-2xl">
+                  <span className="text-[10px] text-gray-500 font-bold uppercase">Institute Balance</span>
+                  <h3 className="text-2xl font-extrabold text-emerald-400 mt-1">₹{analytics?.instituteBalance || 0}</h3>
+                </div>
                 <div className="glass-panel border border-white/5 p-4 rounded-2xl">
                   <span className="text-[10px] text-gray-500 font-bold uppercase">Transaction Volume</span>
                   <h3 className="text-2xl font-extrabold text-indigo-400 mt-1">₹{analytics?.financials?.totalVolume || 0}</h3>
@@ -969,10 +1085,11 @@ const AdminDashboard = () => {
                     {usersList.filter(usr => {
                       const isOwn = usr._id === user?.id;
                       const isAdmin = usr.role === 'admin' || usr.role === 'subadmin';
+                      const isRoleMatch = !roleFilter || usr.role === roleFilter;
                       if (user?.role === 'subadmin') {
                         return !isOwn && !isAdmin && usr.role === 'student';
                       }
-                      return !isOwn && !isAdmin;
+                      return !isOwn && !isAdmin && isRoleMatch;
                     }).length === 0 ? (
                       <tr>
                         <td colSpan="5" className="p-8 text-center text-gray-500">No matching user accounts.</td>
@@ -982,19 +1099,27 @@ const AdminDashboard = () => {
                         .filter(usr => {
                           const isOwn = usr._id === user?.id;
                           const isAdmin = usr.role === 'admin' || usr.role === 'subadmin';
+                          const isRoleMatch = !roleFilter || usr.role === roleFilter;
                           if (user?.role === 'subadmin') {
                             return !isOwn && !isAdmin && usr.role === 'student';
                           }
-                          return !isOwn && !isAdmin;
+                          return !isOwn && !isAdmin && isRoleMatch;
                         })
                         .map((usr) => (
                         <tr key={usr._id} className="hover:bg-white/2">
                           <td className="p-4 font-semibold text-white">{usr.name}</td>
                           <td className="p-4 space-y-0.5">
                             <div>{usr.email}</div>
-                            <div className="text-[10px] uppercase font-bold text-indigo-400">{usr.role}</div>
+                            <div className={`text-[10px] uppercase font-bold ${
+                              usr.role === 'student' ? 'text-indigo-400' : 'text-emerald-400'
+                            }`}>{usr.role}</div>
                           </td>
-                          <td className="p-4 font-bold">₹{usr.role === 'student' ? usr.walletBalance : usr.totalEarnings}</td>
+                          <td className="p-4 font-bold">
+                            <span className="text-[9px] text-gray-500 font-normal block uppercase tracking-wider">
+                              {usr.role === 'student' ? 'Wallet' : 'Earnings'}
+                            </span>
+                            ₹{usr.role === 'student' ? (usr.walletBalance || 0) : (usr.totalEarnings || 0)}
+                          </td>
                           <td className="p-4">
                             <span className={`px-2 py-0.5 text-[10px] font-bold rounded-full uppercase ${
                               usr.status === 'active' ? 'bg-emerald-500/10 text-emerald-400' :
@@ -1004,6 +1129,15 @@ const AdminDashboard = () => {
                             </span>
                           </td>
                           <td className="p-4 flex gap-2 justify-center items-center">
+                            {/* Inspect Details */}
+                            <button
+                              onClick={() => { setInspectUser(usr); setShowInspectModal(true); }}
+                              title="Inspect Profile"
+                              className="p-1.5 bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 hover:bg-indigo-500 hover:text-white rounded-lg transition-colors cursor-pointer"
+                            >
+                              <Eye size={14} />
+                            </button>
+
                             {/* Freeze / Suspend actions */}
                             {usr.status === 'active' ? (
                               <>
@@ -1031,29 +1165,247 @@ const AdminDashboard = () => {
                                 <ShieldCheck size={14} />
                               </button>
                             )}
-
-                            {/* Reset student MPIN & Add Balance options */}
-                             {usr.role === 'student' && (
-                               <div className="flex gap-1.5 justify-center items-center">
-                                 {user?.role !== 'subadmin' && (
-                                   <button
-                                     onClick={() => { setTargetUser(usr); setShowMpinModal(true); }}
-                                     className="py-1 px-2 bg-slate-800 hover:bg-slate-700 rounded-lg font-bold text-[10px] transition-colors cursor-pointer"
-                                   >
-                                     Reset MPIN
-                                   </button>
-                                 )}
-                                 <button
-                                   onClick={() => { setTargetUser(usr); setShowAllocateModal(true); }}
-                                   className="py-1 px-2 bg-indigo-600/20 text-indigo-400 border border-indigo-500/10 hover:bg-indigo-600 hover:text-white rounded-lg font-bold text-[10px] transition-colors cursor-pointer shadow-sm shadow-indigo-500/5 animate-glow"
-                                 >
-                                   Add Balance
-                                 </button>
-                               </div>
-                             )}
                           </td>
                         </tr>
                       ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {/* PANEL 2.5: Institute Funds Management */}
+          {activePanel === 'institute-funds' && user?.role === 'admin' && (
+            <div className="space-y-6 animate-fade-in">
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-white/5 pb-4">
+                <div>
+                  <h3 className="text-base font-bold text-white flex items-center gap-1.5">
+                    <Coins size={18} className="text-emerald-400 animate-pulse" /> Institute Treasury
+                  </h3>
+                  <p className="text-[10px] text-gray-500 mt-0.5">Manage and allocate centralized funds for the entire campus.</p>
+                </div>
+              </div>
+
+              {/* Grid: Balance Card & Load Funds Form */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                {/* Balance Card */}
+                <div className="md:col-span-1 glass-panel border border-white/5 p-6 rounded-2xl flex flex-col justify-between space-y-4">
+                  <div>
+                    <span className="text-[10px] text-gray-500 font-bold uppercase tracking-wider">Current Institute Balance</span>
+                    <h2 className="text-3xl font-extrabold text-white mt-1">₹{analytics?.instituteBalance?.toFixed(2) || '0.00'}</h2>
+                  </div>
+                  <div className="text-[10px] text-gray-400 leading-relaxed bg-white/2 p-3 rounded-xl border border-white/5">
+                    Students do not maintain individual balances. When they make purchases, funds are deducted directly from this central balance.
+                  </div>
+                </div>
+
+                {/* Load Funds Form */}
+                <div className="md:col-span-2 glass-panel border border-white/5 p-6 rounded-2xl">
+                  <h4 className="font-bold text-sm text-white mb-3">Load Institute Funds</h4>
+                  <form onSubmit={handleAddInstituteFundsSubmit} className="space-y-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-[10px] font-bold uppercase text-gray-500 mb-1">Amount to Add (₹)</label>
+                        <input
+                          type="number"
+                          required
+                          value={addFundsAmount}
+                          onChange={(e) => setAddFundsAmount(e.target.value)}
+                          placeholder="e.g. 100000"
+                          className="w-full bg-gray-950 border border-white/5 rounded-xl py-2 px-3 text-xs text-white focus:outline-none focus:border-indigo-500"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-bold uppercase text-gray-500 mb-1">Fund Description / Reference</label>
+                        <input
+                          type="text"
+                          required
+                          value={addFundsDescription}
+                          onChange={(e) => setAddFundsDescription(e.target.value)}
+                          placeholder="e.g. FY26 Grant Allocation"
+                          className="w-full bg-gray-950 border border-white/5 rounded-xl py-2 px-3 text-xs text-white focus:outline-none focus:border-indigo-500"
+                        />
+                      </div>
+                    </div>
+                    <button
+                      type="submit"
+                      disabled={instituteFundsLoading}
+                      className="bg-indigo-600 hover:bg-indigo-500 text-white font-semibold py-2.5 px-4 rounded-xl text-xs flex items-center gap-1.5 cursor-pointer shadow-lg shadow-indigo-600/20 disabled:opacity-50"
+                    >
+                      <PlusCircle size={14} /> {instituteFundsLoading ? 'Loading...' : 'Add Treasury Funds'}
+                    </button>
+                  </form>
+                </div>
+              </div>
+
+              {/* History Table */}
+              <div className="space-y-4">
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                  <h4 className="font-bold text-sm text-white">Institute Funds Add History</h4>
+                  <div className="flex items-center gap-2 bg-gray-950/60 border border-white/5 rounded-xl px-3 py-1.5 w-full sm:w-80">
+                    <Search size={14} className="text-gray-400" />
+                    <input
+                      type="text"
+                      placeholder="Search by desc, admin, ID, or date (e.g. 01/07/2026)..."
+                      value={instituteFundsSearch}
+                      onChange={(e) => setInstituteFundsSearch(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') fetchInstituteFundsHistory();
+                      }}
+                      className="bg-transparent border-none outline-none text-xs text-white placeholder-gray-500 w-full"
+                    />
+                    <button
+                      onClick={fetchInstituteFundsHistory}
+                      className="bg-indigo-600 hover:bg-indigo-500 text-white font-semibold py-1 px-3 rounded-lg text-[10px] cursor-pointer"
+                    >
+                      Filter
+                    </button>
+                  </div>
+                </div>
+                <div className="glass-panel border border-white/5 rounded-2xl overflow-x-auto shadow-xl">
+                  <table className="w-full text-left border-collapse text-xs">
+                    <thead>
+                      <tr className="bg-gray-950/40 border-b border-white/5 text-gray-400 uppercase tracking-wider font-bold">
+                        <th className="p-4">Date</th>
+                        <th className="p-4">Transaction ID</th>
+                        <th className="p-4">Added By (Admin)</th>
+                        <th className="p-4">Description</th>
+                        <th className="p-4 text-right">Amount</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-white/5 text-gray-300">
+                      {instituteFundsLoading && instituteFundsHistory.length === 0 ? (
+                        <tr>
+                          <td colSpan="5" className="p-8 text-center text-gray-500">Loading history logs...</td>
+                        </tr>
+                      ) : instituteFundsHistory.length === 0 ? (
+                        <tr>
+                          <td colSpan="5" className="p-8 text-center text-gray-500">No load records found.</td>
+                        </tr>
+                      ) : (
+                        instituteFundsHistory.map((log) => {
+                          const dateStr = new Date(log.createdAt).toLocaleString('en-IN');
+                          return (
+                            <tr key={log._id} className="hover:bg-white/2">
+                              <td className="p-4 whitespace-nowrap">{dateStr}</td>
+                              <td className="p-4 font-mono text-[10px] text-indigo-400">{log.transaction_id}</td>
+                              <td className="p-4">
+                                <div className="font-semibold text-white">{log.sender?.name || 'System'}</div>
+                                <div className="text-[10px] text-gray-500">{log.sender?.email || '-'}</div>
+                              </td>
+                              <td className="p-4">{log.description || '-'}</td>
+                              <td className="p-4 text-right font-extrabold text-emerald-400">
+                                +₹{log.amount.toFixed(2)}
+                              </td>
+                            </tr>
+                          );
+                        })
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* PANEL 2.7: System Notification Logs */}
+          {activePanel === 'notifications-log' && user?.role === 'admin' && (
+            <div className="space-y-6 animate-fade-in">
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-white/5 pb-4">
+                <div>
+                  <h3 className="text-base font-bold text-white flex items-center gap-1.5">
+                    <Bell size={18} className="text-indigo-400" /> Notification Audit Log
+                  </h3>
+                  <p className="text-[10px] text-gray-500 mt-0.5">Audit log of system-generated and admin-broadcasted notifications.</p>
+                </div>
+                <div className="flex items-center gap-2 bg-gray-950/60 border border-white/5 rounded-xl px-3 py-1.5 w-full sm:w-80">
+                  <Search size={14} className="text-gray-400" />
+                  <input
+                    type="text"
+                    placeholder="Search by title, message, or user..."
+                    value={notificationsLogSearch}
+                    onChange={(e) => setNotificationsLogSearch(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') fetchNotificationsLog();
+                    }}
+                    className="bg-transparent border-none outline-none text-xs text-white placeholder-gray-500 w-full"
+                  />
+                  <button
+                    onClick={fetchNotificationsLog}
+                    className="bg-indigo-600 hover:bg-indigo-500 text-white font-semibold py-1 px-3 rounded-lg text-[10px] cursor-pointer"
+                  >
+                    Filter
+                  </button>
+                </div>
+              </div>
+
+              {/* Table of notification logs */}
+              <div className="glass-panel border border-white/5 rounded-2xl overflow-x-auto shadow-xl">
+                <table className="w-full text-left border-collapse text-xs">
+                  <thead>
+                    <tr className="bg-gray-950/40 border-b border-white/5 text-gray-400 uppercase tracking-wider font-bold">
+                      <th className="p-4">Timestamp</th>
+                      <th className="p-4">Recipient</th>
+                      <th className="p-4">Type</th>
+                      <th className="p-4">Title / Message</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-white/5 text-gray-300">
+                    {notificationsLogLoading && notificationsLog.length === 0 ? (
+                      <tr>
+                        <td colSpan="4" className="p-8 text-center text-gray-500">Loading audit logs...</td>
+                      </tr>
+                    ) : notificationsLog.length === 0 ? (
+                      <tr>
+                        <td colSpan="4" className="p-8 text-center text-gray-500">No matching notifications found.</td>
+                      </tr>
+                    ) : (
+                      notificationsLog.map((notif) => {
+                        const dateStr = new Date(notif.createdAt).toLocaleString('en-IN');
+                        return (
+                          <tr key={notif._id} className="hover:bg-white/2 align-top">
+                            <td className="p-4 whitespace-nowrap text-gray-400 font-medium">
+                              {dateStr}
+                            </td>
+                            <td className="p-4 min-w-[150px]">
+                              {notif.recipient ? (
+                                <>
+                                  <div className="font-semibold text-white">{notif.recipient.name}</div>
+                                  <div className="text-[10px] text-gray-500">{notif.recipient.email}</div>
+                                  <span className={`text-[8px] uppercase tracking-wider font-extrabold px-1.5 py-0.5 rounded inline-block mt-1 ${
+                                    notif.recipient.role === 'student'
+                                      ? 'bg-indigo-500/10 text-indigo-400 border border-indigo-500/20'
+                                      : notif.recipient.role === 'vendor'
+                                      ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                                      : 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
+                                  }`}>
+                                    {notif.recipient.role}
+                                  </span>
+                                </>
+                              ) : (
+                                <span className="text-red-400 italic">Unknown recipient</span>
+                              )}
+                            </td>
+                            <td className="p-4">
+                              <span className={`text-[9px] uppercase tracking-wider font-extrabold px-2 py-0.5 rounded-full inline-block ${
+                                notif.type === 'system' ? 'bg-indigo-500/10 text-indigo-400 border border-indigo-500/20' :
+                                notif.type === 'kyc' ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20' :
+                                notif.type === 'transaction' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' :
+                                'bg-rose-500/10 text-rose-400 border border-rose-500/20'
+                              }`}>
+                                {notif.type}
+                              </span>
+                            </td>
+                            <td className="p-4">
+                              <div className="font-bold text-white text-xs">{notif.title}</div>
+                              <p className="text-gray-400 text-[11px] mt-1 leading-relaxed max-w-lg break-words">
+                                {notif.message}
+                              </p>
+                            </td>
+                          </tr>
+                        );
+                      })
                     )}
                   </tbody>
                 </table>
@@ -1376,16 +1728,23 @@ const AdminDashboard = () => {
                                </span>
                              </td>
                              {user?.role === 'admin' && (
-                               <td className="p-4 text-center">
-                                 <button
-                                   onClick={() => handleRemoveSubadmin(sub._id)}
-                                   title="Remove Sub-admin"
-                                   className="px-2 py-1 bg-red-600/10 border border-red-500/20 text-red-400 hover:bg-red-600 hover:text-white font-bold rounded-lg cursor-pointer transition-colors text-[9px]"
-                                 >
-                                   Remove
-                                 </button>
-                               </td>
-                             )}
+                                <td className="p-4 text-center flex gap-2 justify-center items-center">
+                                  <button
+                                    onClick={() => { setInspectUser(sub); setShowInspectModal(true); }}
+                                    title="Inspect Sub-admin"
+                                    className="px-2.5 py-1 bg-indigo-600/15 text-indigo-400 border border-indigo-500/20 hover:bg-indigo-600 hover:text-white font-bold rounded-lg cursor-pointer transition-colors text-[9px]"
+                                  >
+                                    Inspect
+                                  </button>
+                                  <button
+                                    onClick={() => handleRemoveSubadmin(sub._id)}
+                                    title="Remove Sub-admin"
+                                    className="px-2 py-1 bg-red-600/10 border border-red-500/20 text-red-400 hover:bg-red-600 hover:text-white font-bold rounded-lg cursor-pointer transition-colors text-[9px]"
+                                  >
+                                    Remove
+                                  </button>
+                                </td>
+                              )}
                            </tr>
                         ))
                     )}
@@ -1427,7 +1786,12 @@ const AdminDashboard = () => {
                             <div>{req.sender?.name}</div>
                             <div className="text-[10px] text-gray-500 font-mono">{req.sender?.email}</div>
                           </td>
-                          <td className="p-4 max-w-xs truncate">{req.description}</td>
+                          <td className="p-4 max-w-xs">
+                            <div className="font-semibold text-indigo-300">{req.sender?.bankDetails?.bankName || 'N/A'}</div>
+                            <div className="text-[10px] text-gray-400 font-medium">A/C: {req.sender?.bankDetails?.accountNo || 'N/A'}</div>
+                            <div className="text-[9px] text-gray-500 font-mono">IFSC: {req.sender?.bankDetails?.ifsc || 'N/A'}</div>
+                            <div className="text-[9px] text-gray-500 italic mt-0.5">({req.description})</div>
+                          </td>
                           <td className="p-4">{new Date(req.createdAt).toLocaleString()}</td>
                           <td className="p-4 text-right font-bold text-indigo-400">₹{req.amount.toFixed(2)}</td>
                           <td className="p-4 flex gap-2 justify-center items-center h-full">
@@ -1820,52 +2184,148 @@ const AdminDashboard = () => {
       )}
 
       {/* MODAL 1: Add Institute Balance */}
-         {showAllocateModal && (
-           <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-             <div className="w-full max-w-sm glass-panel border border-white/5 rounded-2xl p-6 space-y-4 shadow-2xl">
-               <div className="flex justify-between items-center border-b border-white/5 pb-2">
-                 <h3 className="font-bold text-sm text-white flex items-center gap-1.5"><PlusCircle size={16} className="text-indigo-400" /> Add Institute Balance</h3>
-                 <button onClick={() => { setShowAllocateModal(false); setTargetUser(null); setError(''); setSuccess(''); }} className="text-gray-500 hover:text-white text-sm font-semibold cursor-pointer">&times;</button>
-               </div>
+      {/* MODAL 1: Inspect User Profile */}
+      {showInspectModal && inspectUser && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="w-full max-w-md glass-panel border border-white/5 rounded-2xl p-6 space-y-4 shadow-2xl animate-fade-in text-xs">
+            <div className="flex justify-between items-center border-b border-white/5 pb-2">
+              <h3 className="font-bold text-sm text-white flex items-center gap-1.5">
+                <Shield size={16} className="text-indigo-400" /> Inspect User Account
+              </h3>
+              <button
+                onClick={() => { setShowInspectModal(false); setInspectUser(null); }}
+                className="text-gray-500 hover:text-white text-sm font-semibold cursor-pointer"
+              >
+                &times;
+              </button>
+            </div>
 
-               <form onSubmit={handleAllocateFundsSubmit} className="space-y-4">
-                 <p className="text-xs text-gray-400">
-                   You are depositing institute funds into the account of: <strong>{targetUser?.name}</strong> ({targetUser?.email}).
-                 </p>
+            {/* Profile Content */}
+            <div className="space-y-3.5">
+              <div className="flex items-center gap-3.5 bg-white/2 p-3.5 border border-white/5 rounded-xl">
+                {inspectUser.profileImage ? (
+                  <img
+                    src={getImageUrl(inspectUser.profileImage)}
+                    alt="Profile"
+                    className="w-14 h-14 rounded-full object-cover border border-indigo-500/20"
+                  />
+                ) : (
+                  <div className="w-14 h-14 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center text-slate-400 font-bold text-lg">
+                    {inspectUser.name.charAt(0).toUpperCase()}
+                  </div>
+                )}
+                <div>
+                  <h4 className="font-extrabold text-sm text-white">{inspectUser.name}</h4>
+                  <p className="text-[10px] text-gray-500">{inspectUser.email}</p>
+                  <span className={`text-[9px] uppercase tracking-wider font-extrabold px-2 py-0.5 rounded-full inline-block mt-1 ${
+                    inspectUser.role === 'student'
+                      ? 'bg-indigo-500/10 text-indigo-400 border border-indigo-500/20'
+                      : inspectUser.role === 'vendor'
+                      ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                      : 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
+                  }`}>
+                    {inspectUser.role}
+                  </span>
+                </div>
+              </div>
 
-                 <div>
-                   <label className="block text-[10px] font-bold uppercase text-gray-500 mb-1">Enter Amount (₹)</label>
-                   <input
-                     type="number"
-                     required
-                     value={allocateAmount}
-                     onChange={(e) => setAllocateAmount(e.target.value)}
-                     placeholder="e.g. 500"
-                     className="w-full bg-gray-950/60 border border-white/5 rounded-xl py-2 px-3 text-xs text-white focus:outline-none focus:border-indigo-500"
-                   />
-                 </div>
+              {/* Data Table */}
+              <div className="divide-y divide-white/5 bg-slate-950/40 border border-white/5 rounded-xl px-4 py-2">
+                <div className="py-2.5 flex justify-between">
+                  <span className="text-gray-500 font-medium">Account Status</span>
+                  <span className={`font-bold uppercase ${
+                    inspectUser.status === 'active' ? 'text-emerald-400' :
+                    inspectUser.status === 'suspended' ? 'text-red-400' : 'text-amber-400'
+                  }`}>{inspectUser.status}</span>
+                </div>
 
-                 <div>
-                   <label className="block text-[10px] font-bold uppercase text-gray-500 mb-1">Allocation Description</label>
-                   <input
-                     type="text"
-                     value={allocateDesc}
-                     onChange={(e) => setAllocateDesc(e.target.value)}
-                     placeholder="e.g. Canteen allowance / refund"
-                     className="w-full bg-gray-950/60 border border-white/5 rounded-xl py-2 px-3 text-xs text-white focus:outline-none focus:border-indigo-500"
-                   />
-                 </div>
+                {inspectUser.role !== 'subadmin' && (
+                  <div className="py-2.5 flex justify-between items-start">
+                    <span className="text-gray-500 font-medium">KYC Status</span>
+                    <div className="text-right space-y-1">
+                      <span className={`font-bold uppercase block ${
+                        inspectUser.kycStatus === 'approved' ? 'text-emerald-400' :
+                        inspectUser.kycStatus === 'pending' ? 'text-amber-400' : 'text-red-400'
+                      }`}>{inspectUser.kycStatus || 'Not Started'}</span>
+                      {inspectUser.kycDocument && (
+                        <a
+                          href={getImageUrl(inspectUser.kycDocument)}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex items-center gap-0.5 text-[9px] text-indigo-400 hover:underline bg-indigo-500/5 border border-indigo-500/10 px-1.5 py-0.5 rounded cursor-pointer"
+                        >
+                          View ID Document
+                        </a>
+                      )}
+                    </div>
+                  </div>
+                )}
 
-                 <button
-                   type="submit"
-                   className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-semibold py-2.5 rounded-xl text-xs flex items-center justify-center gap-1.5 cursor-pointer shadow-lg shadow-indigo-600/20"
-                 >
-                   <span>Deposit Balance</span>
-                 </button>
-               </form>
-             </div>
-           </div>
-         )}
+                {inspectUser.role === 'subadmin' && (
+                  <>
+                    <div className="py-2.5 flex justify-between">
+                      <span className="text-gray-500 font-medium">Students KYC Verified</span>
+                      <span className="font-bold text-white text-right">
+                        {inspectUser.kycVerifiedCount || 0} users
+                      </span>
+                    </div>
+                    <div className="py-2.5 flex justify-between">
+                      <span className="text-gray-500 font-medium">Complaints Resolved</span>
+                      <span className="font-bold text-white text-right">
+                        {inspectUser.complaintsSolvedCount || 0} tickets
+                      </span>
+                    </div>
+                  </>
+                )}
+
+                {inspectUser.role === 'vendor' && (
+                  <div className="py-2.5 flex justify-between">
+                    <span className="text-gray-500 font-medium">Total Earnings</span>
+                    <span className="font-bold text-white">
+                      ₹{(inspectUser.totalEarnings || 0).toFixed(2)}
+                    </span>
+                  </div>
+                )}
+
+                <div className="py-2.5 flex justify-between">
+                  <span className="text-gray-500 font-medium">Member Since</span>
+                  <span className="text-gray-300 font-medium">
+                    {new Date(inspectUser.createdAt).toLocaleDateString('en-IN')}
+                  </span>
+                </div>
+              </div>
+
+              {/* Vendor Bank Details */}
+              {inspectUser.role === 'vendor' && inspectUser.bankDetails && (
+                <div className="bg-slate-950/40 border border-white/5 rounded-xl p-4 space-y-2">
+                  <h5 className="font-bold uppercase tracking-wider text-indigo-400 text-[10px]">Canteen Bank Account Details</h5>
+                  <div className="grid grid-cols-2 gap-2 text-[11px]">
+                    <div>
+                      <span className="text-gray-500 block">Bank Name</span>
+                      <span className="text-white font-semibold">{inspectUser.bankDetails.bankName || 'N/A'}</span>
+                    </div>
+                    <div>
+                      <span className="text-gray-500 block">Account Number</span>
+                      <span className="text-white font-mono">{inspectUser.bankDetails.accountNo || 'N/A'}</span>
+                    </div>
+                    <div className="col-span-2">
+                      <span className="text-gray-500 block">IFSC Code</span>
+                      <span className="text-white font-mono uppercase">{inspectUser.bankDetails.ifsc || 'N/A'}</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <button
+              onClick={() => { setShowInspectModal(false); setInspectUser(null); }}
+              className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-semibold py-2.5 rounded-xl text-xs cursor-pointer text-center"
+            >
+              Close Profile View
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* MODAL 2: Create Sub-Admin */}
       {showSubadminModal && (

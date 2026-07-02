@@ -133,6 +133,15 @@ const StudentDashboard = () => {
     return () => clearInterval(interval);
   }, []);
 
+  // Enforce KYC verification restriction
+  useEffect(() => {
+    if (user && user.kycStatus !== 'approved') {
+      if (activeTab !== 'complaints' && activeTab !== 'complaint-history') {
+        setActiveTab('complaints');
+      }
+    }
+  }, [user, activeTab]);
+
   const getGroupedNotifications = () => {
     const groups = {
       today: [],
@@ -676,213 +685,163 @@ const StudentDashboard = () => {
   };
 
   return (
-    <div className="min-h-screen bg-[#0B0F19] text-gray-200">
-      {/* Top Banner Navigation */}
-      <header className="glass-panel border-b border-white/5 sticky top-0 z-30 px-6 py-4 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          {user?.profileImage ? (
-            <img src={getImageUrl(user.profileImage)} alt="Profile" className="w-10 h-10 rounded-full object-cover border border-indigo-500/30" />
-          ) : (
-            <div className="w-10 h-10 rounded-full bg-indigo-600/20 text-indigo-400 font-bold flex items-center justify-center border border-indigo-500/20">
-              {user?.name.charAt(0)}
-            </div>
-          )}
-          <div>
-            <h4 className="font-bold text-white text-sm">{user?.name}</h4>
-            <div className="flex items-center gap-1.5 mt-0.5">
-              <span className="text-[10px] uppercase font-bold text-indigo-400 bg-indigo-500/10 px-2 py-0.5 rounded-full">Student</span>
-              {user?.kycStatus === 'approved' && (
-                <span className="text-[9px] font-bold text-emerald-400 flex items-center gap-0.5">
-                  <CheckCircle2 size={10} /> Verified
-                </span>
+    <div className="mobile-app-container">
+      <div className="mobile-app-shell overflow-hidden">
+        <div className="mobile-notch"></div>
+        
+        {/* Sleek Premium Header */}
+        <header className="px-4 pt-7 pb-4 bg-[#0e091c]/80 backdrop-blur-md text-white flex items-center justify-between border-b border-white/5 relative z-30 shrink-0">
+          <div className="flex items-center gap-2.5">
+            <button
+              onClick={() => {
+                setNewName(user?.name || '');
+                setShowEditModal(true);
+              }}
+              className="focus:outline-none relative group action-tap-feedback cursor-pointer"
+            >
+              {user?.profileImage ? (
+                <img src={getImageUrl(user.profileImage)} alt="Profile" className="w-9 h-9 rounded-full object-cover border border-blue-500/35" />
+              ) : (
+                <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-[#2563eb] to-[#1d4ed8] text-white font-bold flex items-center justify-center border border-white/10 text-xs shadow-inner">
+                  {user?.name?.charAt(0)}
+                </div>
               )}
-              {user?.kycStatus === 'pending' && (
-                <span className="text-[9px] font-bold text-amber-400 flex items-center gap-0.5">
-                  <Clock size={10} /> KYC Pending
-                </span>
-              )}
-              {user?.kycStatus === 'rejected' && (
-                <span className="text-[9px] font-bold text-red-400 flex items-center gap-0.5">
-                  <AlertCircle size={10} /> KYC Rejected
-                </span>
-              )}
+            </button>
+            <div>
+              <h4 className="font-black text-[10px] tracking-widest uppercase text-blue-300">CampusPay Wallet</h4>
+              <p className="text-[10px] text-white font-bold flex items-center gap-1.5">
+                {user?.name}
+                <span className="text-white/20">&bull;</span>
+                {user?.kycStatus === 'approved' ? (
+                  <span className="text-emerald-400 font-extrabold flex items-center gap-0.5">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span> Verified
+                  </span>
+                ) : (
+                  <span className="text-amber-400 font-extrabold flex items-center gap-0.5">
+                    <span className="w-1.5 h-1.5 rounded-full bg-amber-400"></span> Pending KYC
+                  </span>
+                )}
+              </p>
             </div>
           </div>
-        </div>
+          
+          <div className="flex items-center gap-1.5">
+            <button
+              onClick={() => user?.kycStatus === 'approved' ? setActiveTab('notifications') : null}
+              style={{ opacity: user?.kycStatus === 'approved' ? 1 : 0.4 }}
+              className="p-2 hover:bg-white/5 rounded-xl transition-all relative cursor-pointer border border-white/5 bg-[#120d22]"
+            >
+              <Bell size={15} />
+              {notifications.filter((n) => !n.isRead).length > 0 && (
+                <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-rose-500 rounded-full border border-[#0f0a1c] animate-pulse"></span>
+              )}
+            </button>
+            <button
+              onClick={logout}
+              className="p-2 hover:bg-white/5 rounded-xl transition-all cursor-pointer border border-white/5 bg-[#120d22]"
+              title="Logout"
+            >
+              <LogOut size={15} />
+            </button>
+          </div>
+        </header>
 
-        <div className="flex items-center gap-2">
-          {/* Header notifications bell removed per user request */}
-
-          <button
-            onClick={() => {
-              setNewName(user?.name || '');
-              setShowEditModal(true);
-            }}
-            className="flex items-center gap-1.5 text-xs text-indigo-400 hover:text-indigo-300 hover:bg-indigo-500/5 py-2 px-3 rounded-xl transition-all cursor-pointer"
-          >
-            <Settings size={14} />
-            <span>Edit Profile</span>
-          </button>
-          <button
-            onClick={logout}
-            className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-white hover:bg-white/5 py-2 px-3 rounded-xl transition-all cursor-pointer"
-          >
-            <LogOut size={16} />
-            <span>Logout</span>
-          </button>
-        </div>
-      </header>
-
-      {/* Main container */}
-      <main className="max-w-6xl mx-auto px-6 py-8 grid grid-cols-1 md:grid-cols-4 gap-8">
-        {/* Left Sidebar Menu */}
-        <div className="md:col-span-1 space-y-3">
-          <button
-            onClick={() => setActiveTab('wallet')}
-            className={`w-full text-left py-3 px-4 rounded-xl flex items-center gap-3 font-semibold text-sm transition-all cursor-pointer ${
-              activeTab === 'wallet' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/15' : 'text-gray-400 hover:text-white hover:bg-white/5'
-            }`}
-          >
-            <Wallet size={18} />
-            <span>My Wallet</span>
-          </button>
-          <button
-            onClick={() => setActiveTab('history')}
-            className={`w-full text-left py-3 px-4 rounded-xl flex items-center gap-3 font-semibold text-sm transition-all cursor-pointer ${
-              activeTab === 'history' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/15' : 'text-gray-400 hover:text-white hover:bg-white/5'
-            }`}
-          >
-            <History size={18} />
-            <span>Transaction Logs</span>
-          </button>
-          <button
-            onClick={() => setActiveTab('complaints')}
-            className={`w-full text-left py-3 px-4 rounded-xl flex items-center gap-3 font-semibold text-sm transition-all cursor-pointer ${
-              activeTab === 'complaints' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/15' : 'text-gray-400 hover:text-white hover:bg-white/5'
-            }`}
-          >
-            <MessageSquare size={18} />
-            <span>File a Complaint</span>
-          </button>
-          <button
-            onClick={() => setActiveTab('complaint-history')}
-            className={`w-full text-left py-3 px-4 rounded-xl flex items-center gap-3 font-semibold text-sm transition-all cursor-pointer ${
-              activeTab === 'complaint-history' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/15' : 'text-gray-400 hover:text-white hover:bg-white/5'
-            }`}
-          >
-            <History size={18} />
-            <span>Complaint History</span>
-          </button>
-          <button
-            onClick={() => setActiveTab('notifications')}
-            className={`w-full text-left py-3 px-4 rounded-xl flex items-center justify-between font-semibold text-sm transition-all cursor-pointer ${
-              activeTab === 'notifications' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/15' : 'text-gray-400 hover:text-white hover:bg-white/5'
-            }`}
-          >
-            <div className="flex items-center gap-3">
-              <Bell size={18} />
-              <span>Notifications Feed</span>
-            </div>
-            {notifications.filter((n) => !n.isRead).length > 0 && (
-              <span className="bg-rose-500 text-white font-extrabold text-[10px] px-1.5 py-0.5 rounded-full animate-pulse">
-                {notifications.filter((n) => !n.isRead).length}
-              </span>
-            )}
-          </button>
-          <button
-            onClick={() => setActiveTab('biometrics')}
-            className={`w-full text-left py-3 px-4 rounded-xl flex items-center gap-3 font-semibold text-sm transition-all cursor-pointer ${
-              activeTab === 'biometrics' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/15' : 'text-gray-400 hover:text-white hover:bg-white/5'
-            }`}
-          >
-            <Fingerprint size={18} />
-            <span>Biometric Link</span>
-          </button>
-        </div>
-
-        {/* Right Dashboard Body */}
-        <div className="md:col-span-3">
-          {/* TAB 1: Wallet Balance and quick actions */}
+        {/* Mobile Viewport Content */}
+        <div className="mobile-content bg-[#0b0816] p-4 pb-24">
+          
+          {/* TAB 1: Wallet Balance & Actions */}
           {activeTab === 'wallet' && (
-            <div className="space-y-8 animate-fade-in">
+            <div className="space-y-4.5 animate-fade-in">
               {/* Alert banner for Frozen Account status */}
               {user?.status === 'frozen' && (
-                <div className="p-5 bg-rose-950/20 border border-rose-500/30 rounded-2xl flex items-start gap-4 shadow-lg shadow-rose-950/5 relative overflow-hidden">
-                  <div className="absolute top-0 right-0 w-32 h-32 bg-rose-500/5 rounded-full blur-2xl"></div>
-                  <ShieldAlert className="text-rose-400 mt-0.5 shrink-0 animate-pulse" size={24} />
-                  <div className="space-y-3 z-10">
+                <div className="p-3.5 bg-rose-950/20 border border-rose-500/20 rounded-2xl flex items-start gap-3 shadow-md relative overflow-hidden">
+                  <ShieldAlert className="text-rose-400 mt-0.5 shrink-0 animate-pulse" size={20} />
+                  <div className="space-y-2 z-10">
                     <div>
-                      <h5 className="font-bold text-rose-300 text-sm">Your Account Has Been Frozen</h5>
-                      <p className="text-xs text-rose-400/80 mt-1 leading-relaxed">
-                        Your institute wallet is frozen by the administrator. Outgoing transfers and scanner payments have been suspended. If you need a record of your transactions, you can generate a signed statement below.
+                      <h5 className="font-bold text-rose-300 text-[11px]">Wallet Suspended</h5>
+                      <p className="text-[9px] text-rose-400/80 mt-0.5 leading-relaxed">
+                        Your wallet is frozen by administrator. Outgoing transfers and QR payments are disabled. Download statement below.
                       </p>
                     </div>
                     <button
                       onClick={downloadPDFStatement}
                       disabled={downloadingPDF}
-                      className="inline-flex items-center gap-2 bg-rose-600 hover:bg-rose-500 text-white font-semibold text-xs py-2 px-4 rounded-xl transition-all shadow-md shadow-rose-950/50 cursor-pointer active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="inline-flex items-center gap-1.5 bg-rose-600 hover:bg-rose-500 text-white font-semibold text-[9px] py-1.5 px-3 rounded-lg transition-all cursor-pointer disabled:opacity-50"
                     >
-                      <FileText size={14} />
-                      <span>{downloadingPDF ? 'Generating Statement...' : 'Generate Statement (PDF)'}</span>
+                      <FileText size={10} />
+                      <span>{downloadingPDF ? 'Generating...' : 'Statement (PDF)'}</span>
                     </button>
                   </div>
                 </div>
               )}
+
               {/* Alert flags for unverified KYC status */}
               {user?.kycStatus === 'pending' && (
-                <div className="p-4 bg-amber-950/20 border border-amber-500/25 rounded-2xl flex items-start gap-3">
-                  <Clock className="text-amber-400 mt-0.5" size={20} />
+                <div className="p-3 bg-amber-950/20 border border-amber-500/20 rounded-2xl flex items-start gap-2.5">
+                  <Clock className="text-amber-400 mt-0.5 shrink-0" size={16} />
                   <div>
-                    <h5 className="font-bold text-amber-300 text-sm">KYC Verification Pending</h5>
-                    <p className="text-xs text-amber-400/80 mt-1">
-                      Your uploaded Student ID Card is currently being verified. You cannot transfer funds or pay vendors until verified by Admin.
+                    <h5 className="font-bold text-amber-300 text-[11px]">KYC Verification Pending</h5>
+                    <p className="text-[9px] text-amber-400/80 mt-0.5 leading-relaxed">
+                      Your Student ID Card is currently being verified. QR payments and transfers are restricted until approved.
                     </p>
                   </div>
                 </div>
               )}
               {user?.kycStatus === 'rejected' && (
-                <div className="p-4 bg-red-950/20 border border-red-500/25 rounded-2xl flex items-start gap-3">
-                  <AlertCircle className="text-red-400 mt-0.5" size={20} />
+                <div className="p-3 bg-red-950/20 border border-red-500/20 rounded-2xl flex items-start gap-2.5">
+                  <AlertCircle className="text-red-400 mt-0.5 shrink-0" size={16} />
                   <div>
-                    <h5 className="font-bold text-red-300 text-sm">Student KYC Document Rejected</h5>
-                    <p className="text-xs text-red-400/80 mt-1">
-                      Your Student ID Card verification was rejected. Please raise a ticket with a clean screenshot of your ID card for manual resolution.
+                    <h5 className="font-bold text-red-300 text-[11px]">ID Card KYC Rejected</h5>
+                    <p className="text-[9px] text-red-400/80 mt-0.5 leading-relaxed">
+                      Your verification document was rejected. Please raise a support ticket with a clear photo of your ID Card.
                     </p>
                   </div>
                 </div>
               )}
-              {/* Card component */}
-              <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-indigo-900 via-indigo-950 to-slate-900 border border-indigo-500/20 p-8 shadow-xl">
-                {/* Decorative chips */}
-                <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-500/10 rounded-full blur-3xl"></div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 relative z-10">
-                  <div className="flex justify-between items-start md:border-r md:border-white/10 pr-6">
-                    <div>
-                      <span className="text-xs text-indigo-300 font-semibold uppercase tracking-wider">Institute Wallet Balance</span>
-                      <h1 className="text-4xl font-extrabold text-white mt-2">₹{balance.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</h1>
-                    </div>
-                    <div className="p-3 bg-white/5 border border-white/10 rounded-xl text-indigo-400 animate-glow">
-                      <Wallet size={24} />
-                    </div>
-                  </div>
 
-                  <div className="flex justify-between items-start pl-0 md:pl-6">
-                    <div>
-                      <span className="text-xs text-gray-400 font-semibold uppercase tracking-wider">Total Funds Spent</span>
-                      <h1 className="text-4xl font-extrabold text-rose-400 mt-2">
-                        ₹{transactions
-                          .filter((t) => t.sender?._id === user?.id || (t.sender && typeof t.sender === 'string' && t.sender === user?.id))
-                          .reduce((sum, t) => sum + t.amount, 0)
-                          .toLocaleString('en-IN', { minimumFractionDigits: 2 })}
-                      </h1>
-                    </div>
-                    <div className="p-3 bg-white/5 border border-white/10 rounded-xl text-rose-400">
-                      <ArrowUpRight size={24} />
-                    </div>
+              {/* Holographic Premium Balance Card */}
+              <div className="card-holographic rounded-[24px] p-6 shadow-2xl text-white relative flex flex-col justify-between h-44 overflow-hidden group border border-white/5">
+                {/* Reflective shine element */}
+                <div className="absolute inset-0 bg-gradient-to-tr from-white/0 via-white/5 to-white/0 transform -skew-x-12 translate-x-[-150%] group-hover:translate-x-[150%] transition-transform duration-1000 ease-out"></div>
+                
+                <div className="flex justify-between items-start relative z-10">
+                  <div className="space-y-1">
+                    <span className="text-[9px] text-blue-300 font-bold uppercase tracking-widest pl-0.5">CampusPay Smart Card</span>
+                    <div className="card-chip mt-2 shadow-inner"></div>
+                  </div>
+                  <div className="flex items-center gap-1.5 bg-white/5 border border-white/10 rounded-full px-2.5 py-1 text-[9px] font-bold text-emerald-400">
+                    <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></div>
+                    Active
                   </div>
                 </div>
 
-                <div className="mt-8 flex flex-wrap gap-4">
+                <div className="space-y-0.5 relative z-10 mt-auto">
+                  <span className="text-[10px] text-blue-200/60 font-semibold uppercase tracking-wider pl-0.5">Available Institute Balance</span>
+                  <div className="flex justify-between items-end">
+                    <h1 className="text-3xl font-black text-white tracking-tight">
+                      ₹{balance.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                    </h1>
+                  </div>
+                </div>
+              </div>
+
+              {/* Companion Outflow Card */}
+              <div className="bg-[#120d22] border border-white/5 rounded-2xl p-4 flex justify-between items-center shadow-sm">
+                <div>
+                  <span className="text-[8px] font-bold text-gray-500 uppercase tracking-widest block pl-0.5">Total Spent</span>
+                  <span className="text-xs font-black text-rose-400 mt-1 block pl-0.5">
+                    ₹{transactions
+                      .filter((t) => t.sender?._id === user?.id || (t.sender && typeof t.sender === 'string' && t.sender === user?.id))
+                      .reduce((sum, t) => sum + t.amount, 0)
+                      .toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                  </span>
+                </div>
+              </div>
+
+              {/* Quick Services Grid */}
+              <div className="bg-[#120d22] border border-white/5 rounded-3xl p-4 shadow-md">
+                <h4 className="text-[10px] font-black uppercase tracking-widest text-blue-300/80 mb-3.5 pl-1">Wallet Services</h4>
+                <div className="grid grid-cols-3 gap-3 text-center">
                   <button
                     onClick={() => {
                       if (user?.status === 'frozen') {
@@ -894,15 +853,16 @@ const StudentDashboard = () => {
                       setScanning(true);
                     }}
                     disabled={user?.status === 'frozen'}
-                    className={`flex-1 min-w-[140px] font-semibold py-3 px-4 rounded-xl flex items-center justify-center gap-2 transition-all cursor-pointer ${
-                      user?.status === 'frozen'
-                        ? 'bg-slate-800/50 text-slate-500 border border-white/5 cursor-not-allowed opacity-60'
-                        : 'bg-indigo-600 hover:bg-indigo-500 text-white hover:-translate-y-0.5 shadow-lg shadow-indigo-600/20'
+                    className={`action-grid-card flex flex-col items-center justify-center p-3 text-center cursor-pointer ${
+                      user?.status === 'frozen' ? 'opacity-40 cursor-not-allowed' : ''
                     }`}
                   >
-                    <QrCode size={18} />
-                    <span>Scan & Pay</span>
+                    <div className="w-10 h-10 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-400 mb-2">
+                      <QrCode size={18} />
+                    </div>
+                    <span className="text-[9px] font-extrabold text-gray-200 uppercase tracking-wide">Scan QR</span>
                   </button>
+
                   <button
                     onClick={() => {
                       if (user?.status === 'frozen') {
@@ -913,47 +873,57 @@ const StudentDashboard = () => {
                       setShowSendModal(true);
                     }}
                     disabled={user?.status === 'frozen'}
-                    className={`flex-1 min-w-[140px] font-semibold py-3 px-4 rounded-xl flex items-center justify-center gap-2 transition-all cursor-pointer ${
-                      user?.status === 'frozen'
-                        ? 'bg-slate-800/50 text-slate-500 border border-white/5 cursor-not-allowed opacity-60'
-                        : 'bg-slate-800 hover:bg-slate-700 border border-white/5 text-white hover:-translate-y-0.5'
+                    className={`action-grid-card flex flex-col items-center justify-center p-3 text-center cursor-pointer ${
+                      user?.status === 'frozen' ? 'opacity-40 cursor-not-allowed' : ''
                     }`}
                   >
-                    <Send size={18} />
-                    <span>Pay Vendor (Email)</span>
+                    <div className="w-10 h-10 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-400 mb-2">
+                      <Send size={18} />
+                    </div>
+                    <span className="text-[9px] font-extrabold text-gray-200 uppercase tracking-wide">Transfer</span>
+                  </button>
+
+                  <button
+                    onClick={() => setActiveTab('complaints')}
+                    className="action-grid-card flex flex-col items-center justify-center p-3 text-center cursor-pointer"
+                  >
+                    <div className="w-10 h-10 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-400 mb-2">
+                      <ShieldAlert size={18} />
+                    </div>
+                    <span className="text-[9px] font-extrabold text-gray-200 uppercase tracking-wide">File Claim</span>
                   </button>
                 </div>
               </div>
 
               {/* Recent Activity List */}
-              <div className="space-y-4">
-                <h3 className="text-lg font-bold text-white flex items-center gap-2">
-                  <History size={20} className="text-indigo-400" /> Recent Activity
+              <div className="space-y-2.5">
+                <h3 className="text-xs font-bold text-white flex items-center gap-1.5 pl-1">
+                  <History size={14} className="text-blue-400" /> Recent Transactions
                 </h3>
-                <div className="glass-panel rounded-2xl divide-y divide-white/5 overflow-hidden">
-                  {transactions.slice(0, 5).length === 0 ? (
-                    <div className="p-8 text-center text-gray-500 text-sm">No transaction records found.</div>
+                <div className="bg-[#120d22] border border-white/5 rounded-2xl divide-y divide-white/5 overflow-hidden shadow-md">
+                  {transactions.slice(0, 4).length === 0 ? (
+                    <div className="p-6 text-center text-gray-500 text-xs">No transactions recorded.</div>
                   ) : (
-                    transactions.slice(0, 5).map((txn) => {
+                    transactions.slice(0, 4).map((txn) => {
                       const isSend = txn.sender?._id === user?.id;
                       const isAdd = txn.type === 'add';
                       return (
-                        <div key={txn._id} className="p-4 flex items-center justify-between hover:bg-white/2 transition-colors">
-                          <div className="flex items-center gap-3">
-                            <div className={`p-2.5 rounded-xl border ${
+                        <div key={txn._id} className="p-3 flex items-center justify-between hover:bg-white/2 transition-colors">
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <div className={`p-2 rounded-xl border shrink-0 ${
                               isAdd ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' :
-                              isSend ? 'bg-red-500/10 border-red-500/20 text-red-400' : 'bg-indigo-500/10 border-indigo-500/20 text-indigo-400'
+                              isSend ? 'bg-rose-500/10 border-rose-500/20 text-rose-400' : 'bg-blue-500/10 border-blue-500/20 text-blue-400'
                             }`}>
-                              {isAdd ? <ArrowDownLeft size={18} /> : <ArrowUpRight size={18} />}
+                              {isAdd ? <ArrowDownLeft size={14} /> : <ArrowUpRight size={14} />}
                             </div>
-                            <div>
-                              <p className="text-sm font-semibold text-white">
-                                {isAdd ? 'Wallet Reload' : isSend ? `Transfer to ${txn.receiver?.name || 'Bank'}` : `Payment from ${txn.sender?.name}`}
+                            <div className="min-w-0">
+                              <p className="text-xs font-semibold text-white truncate">
+                                {isAdd ? 'Wallet Reload' : isSend ? `Paid: ${txn.receiver?.name || 'Merchant'}` : `Received: ${txn.sender?.name}`}
                               </p>
-                              <span className="text-[10px] text-gray-500">{new Date(txn.createdAt).toLocaleDateString()}</span>
+                              <span className="text-[9px] text-gray-500 block mt-0.5">{new Date(txn.createdAt).toLocaleDateString()}</span>
                             </div>
                           </div>
-                          <span className={`font-bold text-sm ${isAdd || !isSend ? 'text-emerald-400' : 'text-red-400'}`}>
+                          <span className={`font-bold text-xs shrink-0 ${isAdd || !isSend ? 'text-emerald-400' : 'text-rose-400'}`}>
                             {isAdd || !isSend ? '+' : '-'} ₹{txn.amount}
                           </span>
                         </div>
@@ -967,44 +937,44 @@ const StudentDashboard = () => {
 
           {/* TAB 2: Full Transaction History */}
           {activeTab === 'history' && (
-            <div className="space-y-4 animate-fade-in">
-              <h3 className="text-lg font-bold text-white flex items-center gap-2">
-                <History size={20} className="text-indigo-400" /> Transaction History
+            <div className="space-y-3 animate-fade-in">
+              <h3 className="text-xs font-bold text-white flex items-center gap-1.5 pl-1">
+                <History size={14} className="text-blue-400" /> Transaction History
               </h3>
-              <div className="glass-panel rounded-2xl divide-y divide-white/5 overflow-hidden">
+              <div className="bg-[#120d22] border border-white/5 rounded-2xl divide-y divide-white/5 overflow-hidden shadow-md">
                 {transactions.length === 0 ? (
-                  <div className="p-8 text-center text-gray-500 text-sm">No transaction records found.</div>
+                  <div className="p-8 text-center text-gray-500 text-xs">No transactions recorded.</div>
                 ) : (
                   transactions.map((txn) => {
                     const isSend = txn.sender?._id === user?.id;
                     const isAdd = txn.type === 'add';
                     return (
-                      <div key={txn._id} className="p-4 flex items-center justify-between hover:bg-white/2 transition-colors flex-wrap sm:flex-nowrap gap-4">
-                        <div className="flex items-center gap-3">
-                          <div className={`p-2.5 rounded-xl border ${
+                      <div key={txn._id} className="p-3 flex items-center justify-between hover:bg-white/2 transition-colors gap-3">
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <div className={`p-2 rounded-xl border shrink-0 ${
                             isAdd ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' :
-                            isSend ? 'bg-red-500/10 border-red-500/20 text-red-400' : 'bg-indigo-500/10 border-indigo-500/20 text-indigo-400'
+                            isSend ? 'bg-red-500/10 border-red-500/20 text-red-400' : 'bg-blue-500/10 border-blue-500/20 text-blue-400'
                           }`}>
-                            {isAdd ? <ArrowDownLeft size={18} /> : <ArrowUpRight size={18} />}
+                            {isAdd ? <ArrowDownLeft size={14} /> : <ArrowUpRight size={14} />}
                           </div>
-                          <div>
-                            <p className="text-sm font-semibold text-white">
-                              {isAdd ? 'Wallet Reload' : isSend ? `Transfer to ${txn.receiver?.name || 'Bank'}` : `Payment from ${txn.sender?.name}`}
+                          <div className="min-w-0">
+                            <p className="text-xs font-semibold text-white truncate">
+                              {isAdd ? 'Wallet Reload' : isSend ? `Paid: ${txn.receiver?.name || 'Merchant'}` : `Received: ${txn.sender?.name}`}
                             </p>
-                            <span className="text-[10px] text-gray-500">
-                              {new Date(txn.createdAt).toLocaleDateString()} &bull; {txn.description}
+                            <span className="text-[9px] text-gray-500 block mt-0.5 truncate">
+                              {new Date(txn.createdAt).toLocaleDateString()} &bull; {txn.description || 'No description'}
                             </span>
                           </div>
                         </div>
-                        <div className="flex items-center gap-3 w-full sm:w-auto justify-between sm:justify-end">
-                          <span className={`font-bold text-sm ${isAdd || !isSend ? 'text-emerald-400' : 'text-red-400'}`}>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <span className={`font-bold text-xs ${isAdd || !isSend ? 'text-emerald-400' : 'text-red-400'}`}>
                             {isAdd || !isSend ? '+' : '-'} ₹{txn.amount}
                           </span>
                           <button
                             onClick={() => setActiveReceipt(txn)}
-                            className="py-1 px-2.5 bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 hover:bg-indigo-600 hover:text-white rounded-lg text-[10px] font-bold transition-all cursor-pointer"
+                            className="py-1 px-2 bg-blue-500/10 border border-blue-500/20 text-blue-400 hover:bg-blue-600 hover:text-white rounded-lg text-[9px] font-bold transition-all cursor-pointer"
                           >
-                            Generate Bill
+                            Receipt
                           </button>
                         </div>
                       </div>
@@ -1017,46 +987,59 @@ const StudentDashboard = () => {
 
           {/* TAB 3: Student Support Tickets */}
           {activeTab === 'complaints' && (
-            <div className="max-w-xl mx-auto animate-fade-in">
-              <div className="glass-panel border border-white/5 rounded-2xl p-6 space-y-4">
-                <h3 className="text-base font-bold text-white flex items-center gap-2">
-                  <ShieldAlert size={18} className="text-indigo-400" /> File a Complaint
-                </h3>
-                <p className="text-[10px] text-gray-500">File a complaint/issue regarding transactions or platform access. It will be reviewed by administrators.</p>
+            <div className="animate-fade-in w-full space-y-3">
+              {user?.kycStatus !== 'approved' && (
+                <div className="p-3 bg-red-950/20 border border-red-500/20 rounded-2xl flex items-start gap-2.5">
+                  <ShieldAlert className="text-red-400 mt-0.5 shrink-0" size={16} />
+                  <div>
+                    <h5 className="font-bold text-red-300 text-[11px]">KYC Verification Required</h5>
+                    <p className="text-[9px] text-red-400/80 mt-0.5 leading-relaxed">
+                      QR Payments, transfers, and wallet features are locked until your Student ID Card is verified. You can only use the support desk to submit complaints and check status.
+                    </p>
+                  </div>
+                </div>
+              )}
+              <div className="bg-[#120d22] border border-white/5 rounded-3xl p-5 space-y-4 shadow-md">
+                <div>
+                  <h3 className="text-xs font-bold text-white flex items-center gap-1.5 pl-0.5">
+                    <ShieldAlert size={16} className="text-[#a855f7]" /> File a Complaint
+                  </h3>
+                  <p className="text-[9px] text-gray-500 mt-1 pl-0.5 uppercase font-bold tracking-wider">Submit transaction dispute or login issues for admin review.</p>
+                </div>
 
-                {error && <div className="p-2.5 bg-red-950/20 border border-red-500/20 text-red-400 text-xs rounded-xl">{error}</div>}
-                {success && <div className="p-2.5 bg-emerald-950/20 border border-emerald-500/20 text-emerald-400 text-xs rounded-xl">{success}</div>}
+                {error && <div className="p-3 bg-red-950/20 border border-red-500/20 text-red-300 text-[10px] rounded-xl font-medium">{error}</div>}
+                {success && <div className="p-3 bg-emerald-950/20 border border-emerald-500/20 text-emerald-300 text-[10px] rounded-xl font-medium">{success}</div>}
 
                 <form onSubmit={handleRaiseComplaint} className="space-y-4">
-                  <div>
-                    <label className="block text-[10px] font-bold uppercase text-gray-500 mb-1">Issue Title</label>
+                  <div className="space-y-1.5">
+                    <label className="block text-[10px] font-bold uppercase tracking-widest text-purple-300/60 pl-0.5">Issue Title</label>
                     <input
                       type="text"
                       required
                       value={complaintTitle}
                       onChange={(e) => setComplaintTitle(e.target.value)}
                       placeholder="e.g. Double debit canteen payment"
-                      className="w-full bg-gray-950/60 border border-white/5 rounded-xl py-2 px-3 text-xs text-white focus:outline-none focus:border-indigo-500"
+                      className="premium-input w-full py-3.5 px-3 text-xs placeholder:text-gray-700 focus:outline-none"
                     />
                   </div>
 
-                  <div>
-                    <label className="block text-[10px] font-bold uppercase text-gray-500 mb-1">Details / Description</label>
+                  <div className="space-y-1.5">
+                    <label className="block text-[10px] font-bold uppercase tracking-widest text-purple-300/60 pl-0.5">Details / Description</label>
                     <textarea
                       rows={4}
                       required
                       value={complaintDesc}
                       onChange={(e) => setComplaintDesc(e.target.value)}
                       placeholder="Explain details of your transaction issue..."
-                      className="w-full bg-gray-950/60 border border-white/5 rounded-xl py-2 px-3 text-xs text-white focus:outline-none focus:border-indigo-500 resize-none"
+                      className="premium-input w-full py-3 px-3 text-xs placeholder:text-gray-700 focus:outline-none resize-none"
                     ></textarea>
                   </div>
 
-                  <div>
-                    <label className="block text-[10px] font-bold uppercase text-gray-500 mb-1">Upload Screenshot</label>
-                    <label className="flex items-center gap-2 bg-gray-950/60 hover:bg-gray-950/80 border border-white/5 rounded-xl py-2.5 px-3 cursor-pointer text-xs text-gray-400 hover:text-white transition-all">
-                      <Upload size={14} />
-                      <span className="truncate">{complaintFileName || 'Choose receipt screenshot'}</span>
+                  <div className="space-y-1.5">
+                    <label className="block text-[10px] font-bold uppercase tracking-widest text-purple-300/60 pl-0.5">Upload Screenshot</label>
+                    <label className="flex items-center gap-2.5 bg-[#080510]/80 hover:bg-[#0c0818] border border-white/5 rounded-2xl py-3 px-4 cursor-pointer text-xs text-purple-300/60 hover:text-purple-300 transition-all shadow-inner">
+                      <Upload size={14} className="shrink-0 text-purple-400" />
+                      <span className="truncate text-[10px] font-bold uppercase tracking-wider">{complaintFileName || 'Choose screenshot'}</span>
                       <input
                         type="file"
                         accept="image/*"
@@ -1064,6 +1047,7 @@ const StudentDashboard = () => {
                           const file = e.target.files[0];
                           if (file) {
                             setComplaintFile(file);
+                            setKycFileName(file.name);
                             setComplaintFileName(file.name);
                           }
                         }}
@@ -1075,7 +1059,7 @@ const StudentDashboard = () => {
                   <button
                     type="submit"
                     disabled={loading}
-                    className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-semibold py-2 px-4 rounded-xl text-xs flex items-center justify-center gap-1.5 cursor-pointer"
+                    className="premium-button w-full py-3.5 px-4 rounded-xl text-xs font-bold tracking-widest uppercase flex items-center justify-center gap-2 cursor-pointer transition-all mt-2"
                   >
                     <span>Submit Complaint</span>
                   </button>
@@ -1084,30 +1068,42 @@ const StudentDashboard = () => {
             </div>
           )}
 
-          {/* TAB 8: Student Complaint History with Search Bar */}
+          {/* TAB 3.5: Support Tickets History */}
           {activeTab === 'complaint-history' && (
-            <div className="space-y-6 animate-fade-in">
-              <div className="glass-panel border border-white/5 rounded-2xl p-6 space-y-4">
-                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-white/5 pb-4">
+            <div className="animate-fade-in space-y-3 w-full">
+              {user?.kycStatus !== 'approved' && (
+                <div className="p-3 bg-red-950/20 border border-red-500/20 rounded-2xl flex items-start gap-2.5">
+                  <ShieldAlert className="text-red-400 mt-0.5 shrink-0" size={16} />
                   <div>
-                    <h3 className="text-sm font-bold text-white flex items-center gap-1.5">
-                      <MessageSquare size={18} className="text-indigo-400" /> Complaint Status & Logs
-                    </h3>
-                    <p className="text-[10px] text-gray-500 mt-0.5">Track and search the progress of your submitted support tickets.</p>
+                    <h5 className="font-bold text-red-300 text-[11px]">KYC Verification Required</h5>
+                    <p className="text-[9px] text-red-400/80 mt-0.5 leading-relaxed">
+                      QR Payments, transfers, and wallet features are locked until your Student ID Card is verified. You can only use the support desk to submit complaints and check status.
+                    </p>
                   </div>
-                  <div className="flex items-center gap-2 bg-gray-950/60 border border-white/5 rounded-xl px-3 py-1.5 w-full sm:w-64">
-                    <Search size={14} className="text-gray-400" />
+                </div>
+              )}
+              <div className="bg-[#120d22] border border-white/5 rounded-3xl p-5 space-y-4 shadow-md">
+                <div className="flex justify-between items-center border-b border-white/5 pb-2">
+                  <div>
+                    <h3 className="text-xs font-bold text-white flex items-center gap-1.5 pl-0.5">
+                      <History size={16} className="text-[#a855f7]" /> Complaint History
+                    </h3>
+                    <p className="text-[9px] text-gray-500 mt-0.5">Track and search raised complaints.</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 bg-gray-950/60 border border-white/5 rounded-xl px-2.5 py-1.5 w-full">
+                    <Search size={12} className="text-gray-400 shrink-0" />
                     <input
                       type="text"
-                      placeholder="Search tickets by title, description..."
+                      placeholder="Search tickets..."
                       value={complaintsSearch}
                       onChange={(e) => setComplaintsSearch(e.target.value)}
-                      className="bg-transparent border-none outline-none text-xs text-white placeholder-gray-500 w-full"
+                      className="bg-transparent border-none outline-none text-[10px] text-white placeholder-gray-500 w-full"
                     />
                   </div>
                 </div>
 
-                <div className="space-y-4">
+                <div className="space-y-3.5 max-h-[360px] overflow-y-auto pr-1">
                   {(() => {
                     const filtered = complaints.filter((comp) => {
                       if (!complaintsSearch) return true;
@@ -1120,37 +1116,32 @@ const StudentDashboard = () => {
                     });
 
                     return filtered.length === 0 ? (
-                      <div className="p-8 text-center text-gray-500 text-sm">
-                        {complaintsSearch ? 'No matching support tickets found.' : 'No support tickets raised yet.'}
+                      <div className="py-6 text-center text-gray-500 text-xs">
+                        {complaintsSearch ? 'No matching tickets found.' : 'No support tickets raised.'}
                       </div>
                     ) : (
                       filtered.map((comp) => (
-                        <div key={comp._id} className="border border-white/5 bg-gray-950/20 rounded-2xl p-5 space-y-3 hover:border-white/10 transition-all">
+                        <div key={comp._id} className="border border-white/5 bg-gray-950/20 rounded-2xl p-3 space-y-2 hover:border-white/10 transition-all">
                           <div className="flex justify-between items-start">
-                            <div>
-                              <h4 className="font-bold text-sm text-white">{comp.title}</h4>
-                              <span className="text-[9px] text-gray-500 font-mono">ID: {comp._id} &bull; {new Date(comp.createdAt).toLocaleString()}</span>
+                            <div className="min-w-0">
+                              <h4 className="font-bold text-xs text-white truncate">{comp.title}</h4>
+                              <span className="text-[8px] text-gray-500 font-mono block mt-0.5">{new Date(comp.createdAt).toLocaleString()}</span>
                             </div>
-                            <span className={`text-[9px] uppercase font-bold px-2 py-0.5 rounded-full ${
+                            <span className={`text-[8px] uppercase font-bold px-1.5 py-0.5 rounded-full ${
                               comp.status === 'open' ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20' : 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
                             }`}>
                               {comp.status}
                             </span>
                           </div>
-                          <p className="text-xs text-gray-400 bg-gray-950/40 p-3 rounded-xl">"{comp.description}"</p>
+                          <p className="text-[10px] text-gray-400 bg-gray-950/40 p-2.5 rounded-xl italic">"{comp.description}"</p>
                           {comp.screenshot && (
-                            <a href={getImageUrl(comp.screenshot)} target="_blank" rel="noreferrer" className="inline-block text-[10px] text-indigo-400 hover:underline">
-                              View uploaded screenshot attachment
+                            <a href={getImageUrl(comp.screenshot)} target="_blank" rel="noreferrer" className="inline-block text-[9px] text-purple-400 hover:underline">
+                              View Attachment
                             </a>
                           )}
                           {comp.status === 'resolved' && comp.response && (
-                            <div className="bg-emerald-950/20 border border-emerald-500/10 p-3 rounded-xl space-y-1 text-[11px] mt-2">
-                              <div className="flex justify-between items-center text-[10px] text-emerald-400 font-bold uppercase tracking-wider mb-1">
-                                <span>College Resolution Response</span>
-                                {comp.resolvedBy && (
-                                  <span>Resolved by: {comp.resolvedBy.name} ({comp.resolvedBy.role === 'admin' ? 'Super Admin' : 'Sub Admin'})</span>
-                                )}
-                              </div>
+                            <div className="bg-emerald-950/10 border border-emerald-500/10 p-2 rounded-xl text-[9px]">
+                              <span className="text-[8px] text-emerald-400 font-bold block uppercase tracking-wider mb-0.5">Resolution</span>
                               <p className="text-gray-300 italic">"{comp.response}"</p>
                             </div>
                           )}
@@ -1165,41 +1156,41 @@ const StudentDashboard = () => {
 
           {/* TAB 4: Biometric Enrollment Controls */}
           {activeTab === 'biometrics' && (
-            <div className="max-w-md glass-panel border border-white/5 rounded-2xl p-8 space-y-6 animate-fade-in mx-auto">
-              <div className="text-center space-y-2">
-                <div className="inline-flex items-center justify-center p-3.5 bg-indigo-500/10 text-indigo-400 rounded-xl animate-glow">
-                  <Fingerprint size={32} />
+            <div className="max-w-sm bg-[#120d22] border border-white/5 rounded-3xl p-5 space-y-4 animate-fade-in mx-auto shadow-md">
+              <div className="text-center space-y-1.5">
+                <div className="inline-flex items-center justify-center p-3 bg-blue-500/10 text-blue-400 rounded-2xl animate-glow">
+                  <Fingerprint size={28} />
                 </div>
-                <h3 className="text-lg font-bold text-white">Enroll Fingerprint / Biometric Logins</h3>
-                <p className="text-xs text-gray-400 px-4">
-                  Link your local machine credentials (Touch ID, Face ID or Windows Hello) to sign in to Campus Pay instantly next time.
+                <h3 className="text-sm font-bold text-white">Passkey Authentication</h3>
+                <p className="text-[10px] text-gray-400 px-4 leading-relaxed">
+                  Link Touch ID, Face ID or local credentials to instantly authorize wallet transactions and log in.
                 </p>
               </div>
 
-              {error && <div className="p-3 bg-red-950/20 border border-red-500/20 text-red-400 text-xs rounded-xl text-center">{error}</div>}
-              {success && <div className="p-3 bg-emerald-950/20 border border-emerald-500/20 text-emerald-400 text-xs rounded-xl text-center">{success}</div>}
+              {error && <div className="p-2.5 bg-red-950/20 border border-red-500/20 text-red-400 text-[10px] rounded-xl text-center">{error}</div>}
+              {success && <div className="p-2.5 bg-emerald-950/20 border border-emerald-500/20 text-emerald-400 text-[10px] rounded-xl text-center">{success}</div>}
 
-              <div className="flex items-center justify-between p-3 bg-indigo-950/20 border border-indigo-500/10 rounded-xl">
-                <span className="text-xs text-indigo-300 font-semibold">Simulated Biometric fallback</span>
+              <div className="flex items-center justify-between p-2.5 bg-blue-950/20 border border-blue-500/15 rounded-xl text-[10px]">
+                <span className="text-blue-300 font-semibold">Simulated Biometric fallback</span>
                 <input
                   type="checkbox"
                   checked={bioMock}
                   onChange={(e) => setBioMock(e.target.checked)}
-                  className="w-4 h-4 cursor-pointer"
+                  className="w-3.5 h-3.5 cursor-pointer accent-blue-600"
                 />
               </div>
 
               <button
                 onClick={handleEnrollBiometrics}
                 disabled={loading}
-                className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-semibold py-3 px-4 rounded-xl text-xs flex items-center justify-center gap-2 cursor-pointer shadow-lg shadow-indigo-600/15"
+                className="w-full bg-blue-600 hover:bg-blue-500 text-white font-semibold py-2 px-4 rounded-xl text-xs flex items-center justify-center gap-1.5 cursor-pointer shadow-md"
               >
                 {loading ? (
                   <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
                 ) : (
                   <>
-                    <Fingerprint size={16} />
-                    <span>Register Biometrics</span>
+                    <Fingerprint size={14} />
+                    <span>Register Passkey</span>
                   </>
                 )}
               </button>
@@ -1208,28 +1199,27 @@ const StudentDashboard = () => {
 
           {/* TAB 6: Notifications Grouped Feed */}
           {activeTab === 'notifications' && (
-            <div className="space-y-6 animate-fade-in">
-              <div className="flex justify-between items-center border-b border-white/5 pb-4">
+            <div className="space-y-3 animate-fade-in">
+              <div className="flex justify-between items-center border-b border-white/5 pb-3">
                 <div>
-                  <h3 className="text-lg font-bold text-white flex items-center gap-2">
-                    <Bell size={20} className="text-indigo-400" /> Notifications Feed
+                  <h3 className="text-xs font-bold text-white flex items-center gap-1.5 pl-1">
+                    <Bell size={14} className="text-blue-400" /> Notifications
                   </h3>
-                  <p className="text-xs text-gray-500 mt-1">Keep track of your transaction history, complaints, and security updates.</p>
                 </div>
                 {notifications.length > 0 && (
                   <button
                     onClick={markAllNotificationsRead}
-                    className="text-xs font-semibold bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 hover:bg-indigo-600 hover:text-white px-3 py-1.5 rounded-xl transition-all cursor-pointer shadow-lg shadow-indigo-600/5"
+                    className="text-[9px] font-semibold bg-blue-500/10 border border-blue-500/20 text-blue-400 hover:bg-blue-600 hover:text-white px-2.5 py-1 rounded-xl transition-all cursor-pointer"
                   >
-                    Mark All as Read
+                    Read All
                   </button>
                 )}
               </div>
 
-              <div className="space-y-6">
+              <div className="space-y-4 max-h-[420px] overflow-y-auto pr-1">
                 {notifications.length === 0 ? (
-                  <div className="glass-panel border border-white/5 p-8 text-center text-gray-500 text-sm rounded-2xl shadow-xl">
-                    No notifications yet.
+                  <div className="bg-[#120d22] border border-white/5 p-6 text-center text-gray-500 text-xs rounded-2xl">
+                    No notifications.
                   </div>
                 ) : (
                   Object.entries(getGroupedNotifications()).map(([groupName, groupNotifs]) => {
@@ -1241,41 +1231,41 @@ const StudentDashboard = () => {
                       older: 'Older'
                     };
                     return (
-                      <div key={groupName} className="space-y-3">
-                        <h4 className="text-xs font-extrabold text-indigo-300 uppercase tracking-wider pl-1">
+                      <div key={groupName} className="space-y-2">
+                        <h4 className="text-[9px] font-extrabold text-blue-300 uppercase tracking-wider pl-1">
                           {groupTitles[groupName]}
                         </h4>
-                        <div className="glass-panel border border-white/5 rounded-2xl p-4 divide-y divide-white/5 space-y-3 shadow-xl">
+                        <div className="bg-[#120d22] border border-white/5 rounded-2xl p-3 divide-y divide-white/5 space-y-2.5 shadow-md">
                           {groupNotifs.map((notif) => (
                             <div
                               key={notif._id}
                               onClick={() => !notif.isRead && markNotificationRead(notif._id)}
-                              className={`pt-3 first:pt-0 flex items-start justify-between gap-4 group transition-all rounded-lg cursor-pointer ${
-                                notif.isRead ? 'opacity-65' : ''
+                              className={`pt-2.5 first:pt-0 flex items-start justify-between gap-3 group transition-all rounded-lg cursor-pointer ${
+                                notif.isRead ? 'opacity-60' : ''
                               }`}
                             >
-                              <div className="flex gap-3">
-                                <div className={`p-2.5 rounded-xl border shrink-0 flex items-center justify-center ${
+                              <div className="flex gap-2.5 min-w-0">
+                                <div className={`p-2 rounded-xl border shrink-0 flex items-center justify-center h-8 w-8 ${
                                   notif.type === 'transaction' ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' :
-                                  notif.type === 'kyc' ? 'bg-indigo-500/10 border-indigo-500/20 text-indigo-400' :
+                                  notif.type === 'kyc' ? 'bg-blue-500/10 border-blue-500/20 text-blue-400' :
                                   notif.type === 'complaint' ? 'bg-amber-500/10 border-amber-500/20 text-amber-400' :
                                   'bg-rose-500/10 border-rose-500/20 text-rose-400'
                                 }`}>
-                                  <Bell size={16} />
+                                  <Bell size={12} />
                                 </div>
-                                <div className="space-y-1">
-                                  <h5 className="font-bold text-sm text-white">{notif.title}</h5>
-                                  <p className="text-xs text-gray-400 leading-relaxed pr-3">{notif.message}</p>
-                                  <span className="text-[10px] text-gray-500 block mt-1.5">
-                                    {new Date(notif.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} &bull; {new Date(notif.createdAt).toLocaleDateString()}
+                                <div className="min-w-0 space-y-0.5">
+                                  <h5 className="font-bold text-xs text-white truncate">{notif.title}</h5>
+                                  <p className="text-[10px] text-gray-400 leading-normal pr-1">{notif.message}</p>
+                                  <span className="text-[8px] text-gray-500 block mt-1">
+                                    {new Date(notif.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                   </span>
                                 </div>
                               </div>
                               <button
                                 onClick={(e) => deleteNotification(notif._id, e)}
-                                className="text-gray-500 hover:text-rose-400 p-1.5 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer shrink-0"
+                                className="text-gray-500 hover:text-rose-400 p-1 transition-all cursor-pointer shrink-0"
                               >
-                                <Trash2 size={14} />
+                                <Trash2 size={12} />
                               </button>
                             </div>
                           ))}
@@ -1288,7 +1278,44 @@ const StudentDashboard = () => {
             </div>
           )}
         </div>
-      </main>
+
+        {/* Smartphone Bottom Navigation */}
+        <nav className="mobile-bottom-nav">
+          <button
+            onClick={() => user?.kycStatus === 'approved' ? setActiveTab('wallet') : null}
+            style={{ opacity: user?.kycStatus === 'approved' ? 1 : 0.4 }}
+            className={`flex flex-col items-center gap-1 cursor-pointer transition-all focus:outline-none ${
+              activeTab === 'wallet' ? 'text-[#b983ff]' : 'text-gray-500'
+            }`}
+          >
+            <Wallet size={16} />
+            <span className="text-[8px] font-extrabold uppercase tracking-wide">Home</span>
+          </button>
+          
+          <button
+            onClick={() => user?.kycStatus === 'approved' ? setActiveTab('history') : null}
+            style={{ opacity: user?.kycStatus === 'approved' ? 1 : 0.4 }}
+            className={`flex flex-col items-center gap-1 cursor-pointer transition-all focus:outline-none ${
+              activeTab === 'history' ? 'text-[#b983ff]' : 'text-gray-500'
+            }`}
+          >
+            <History size={16} />
+            <span className="text-[8px] font-extrabold uppercase tracking-wide">History</span>
+          </button>
+
+
+          <button
+            onClick={() => setActiveTab('complaint-history')}
+            className={`flex flex-col items-center gap-1 cursor-pointer transition-all focus:outline-none ${
+              activeTab === 'complaint-history' ? 'text-[#b983ff]' : 'text-gray-500'
+            }`}
+          >
+            <MessageSquare size={16} />
+            <span className="text-[8px] font-extrabold uppercase tracking-wide">Tickets</span>
+          </button>
+
+        </nav>
+      </div>
 
       {/* ==========================================================================
          MODAL WINDOWS
@@ -1308,12 +1335,15 @@ const StudentDashboard = () => {
 
             {scanning ? (
               <div className="space-y-4">
-                <p className="text-[10px] text-gray-400 text-center">Center the Vendor QR Code in the scanner box</p>
-                <div id="qr-reader" className="w-full rounded-xl overflow-hidden border border-white/10 bg-gray-950"></div>
+                <p className="text-[10px] text-blue-300/60 font-semibold uppercase tracking-wider text-center">Center the Vendor QR Code in the scanner box</p>
+                <div className="relative w-full rounded-2xl overflow-hidden border border-blue-500/20 bg-gray-950 shadow-inner">
+                  <div className="scanner-laser-line"></div>
+                  <div id="qr-reader" className="w-full bg-transparent"></div>
+                </div>
                 <button
                   type="button"
                   onClick={() => setScanning(false)}
-                  className="w-full bg-slate-800 hover:bg-slate-700 text-white font-semibold py-2 rounded-xl text-xs cursor-pointer animate-fade-in"
+                  className="w-full bg-white/5 hover:bg-white/10 text-gray-300 font-bold py-2.5 rounded-xl text-[10px] uppercase tracking-wider cursor-pointer border border-white/5 transition-all"
                 >
                   Cancel Scanner
                 </button>

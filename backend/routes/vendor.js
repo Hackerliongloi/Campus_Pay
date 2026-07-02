@@ -102,14 +102,26 @@ router.get('/stats', protect, authorize('vendor'), async (req, res) => {
 // @access  Private (Vendor)
 router.post('/redeem', protect, authorize('vendor'), async (req, res) => {
   try {
-    const { amount } = req.body;
+    const { amount, mpin } = req.body;
     const parsedAmount = parseFloat(amount);
 
     if (isNaN(parsedAmount) || parsedAmount <= 0) {
       return res.status(400).json({ success: false, error: 'Please enter a valid positive amount to redeem' });
     }
 
-    const user = await User.findById(req.user.id);
+    if (!mpin) {
+      return res.status(400).json({ success: false, error: 'Please provide your 4-digit security MPIN' });
+    }
+
+    const user = await User.findById(req.user.id).select('+mpin');
+    if (!user) {
+      return res.status(404).json({ success: false, error: 'Vendor profile not found' });
+    }
+
+    const isMpinValid = await user.matchMpin(mpin);
+    if (!isMpinValid) {
+      return res.status(401).json({ success: false, error: 'Incorrect security MPIN' });
+    }
 
     // Guard: Check KYC verification
     if (user.kycStatus !== 'approved') {
@@ -189,6 +201,116 @@ router.post('/redeem', protect, authorize('vendor'), async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ success: false, error: 'Redemption failed. Server error.' });
+  }
+});
+
+// @desc    Send earnings back to student (added to institute balance, student spending reduced)
+// @route   POST /api/vendor/refund-student
+// @access  Private (Vendor)
+router.post('/refund-student', protect, authorize('vendor'), async (req, res) => {
+  try {
+    const { studentEmail, amount, mpin } = req.body;
+    const parsedAmount = parseFloat(amount);
+
+    if (!studentEmail) {
+      return res.status(400).json({ success: false, error: 'Please provide the student email address' });
+    }
+
+    if (isNaN(parsedAmount) || parsedAmount <= 0) {
+      return res.status(400).json({ success: false, error: 'Please enter a valid positive amount' });
+    }
+
+    if (!mpin) {
+      return res.status(400).json({ success: false, error: 'Please provide your 4-digit security MPIN' });
+    }
+
+    // Verify student exists
+    const student = await User.findOne({ email: studentEmail });
+    if (!student) {
+      return res.status(404).json({ success: false, error: 'Student account not found' });
+    }
+
+    if (student.role !== 'student') {
+      return res.status(400).json({ success: false, error: 'Recipient must be a student' });
+    }
+
+    // Verify vendor has sufficient balance and check MPIN
+    const vendor = await User.findById(req.user.id).select('+mpin');
+    if (!vendor) {
+      return res.status(404).json({ success: false, error: 'Vendor profile not found' });
+    }
+
+    const isMpinValid = await vendor.matchMpin(mpin);
+    if (!isMpinValid) {
+      return res.status(401).json({ success: false, error: 'Incorrect security MPIN' });
+    }
+
+    if (vendor.kycStatus !== 'approved') {
+      return res.status(403).json({ success: false, error: 'Your KYC must be approved by admin to send funds to students.' });
+    }
+
+    if (vendor.walletBalance < parsedAmount) {
+      return res.status(400).json({ success: false, error: 'Insufficient earnings balance' });
+    }
+
+    // Deduct from vendor wallet balance atomically
+    const updatedVendor = await User.findOneAndUpdate(
+      { _id: req.user.id, walletBalance: { $gte: parsedAmount } },
+      { $inc: { walletBalance: -parsedAmount } },
+      { new: true }
+    );
+
+    if (!updatedVendor) {
+      return res.status(400).json({ success: false, error: 'Transfer failed. Insufficient funds.' });
+    }
+
+    // Increment central institute fund balance atomically
+    const { getInstituteFund } = require('../utils/fund');
+    const fund = await getInstituteFund();
+    const InstituteFund = require('../models/InstituteFund');
+    await InstituteFund.findByIdAndUpdate(
+      fund._id,
+      { $inc: { balance: parsedAmount } }
+    );
+
+    // Create transaction log of type 'refund'
+    const transaction = await Transaction.create({
+      sender: req.user.id,
+      receiver: student._id,
+      amount: parsedAmount,
+      type: 'refund',
+      status: 'success',
+      description: `Earnings refund from ${vendor.name} to student ${student.name}`,
+    });
+
+    // Create notifications for both parties
+    try {
+      await Notification.create({
+        recipient: student._id,
+        title: 'Refund Received',
+        message: `You received a refund of ₹${parsedAmount.toFixed(2)} from ${vendor.name}. Your spending is reduced.`,
+        type: 'transaction',
+      });
+
+      await Notification.create({
+        recipient: req.user.id,
+        title: 'Refund Processed',
+        message: `Successfully sent/refunded ₹${parsedAmount.toFixed(2)} of your earnings to student ${student.name}.`,
+        type: 'transaction',
+      });
+    } catch (notifErr) {
+      console.error('Failed to create refund transaction notifications:', notifErr);
+    }
+
+    res.status(200).json({
+      success: true,
+      message: `Successfully refunded ₹${parsedAmount} to student ${student.name}.`,
+      walletBalance: updatedVendor.walletBalance,
+      transaction,
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, error: 'Refund process failed. Server error.' });
   }
 });
 

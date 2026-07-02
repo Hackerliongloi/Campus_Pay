@@ -24,7 +24,7 @@ const TransactionSchema = new mongoose.Schema({
   },
   type: {
     type: String,
-    enum: ['pay', 'add', 'send', 'redeem', 'add_institute_funds'],
+    enum: ['pay', 'add', 'send', 'redeem', 'add_institute_funds', 'refund'],
     required: [true, 'Please add transaction type'],
   },
   status: {

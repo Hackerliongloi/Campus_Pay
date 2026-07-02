@@ -139,8 +139,10 @@ router.post('/verify-otp', async (req, res) => {
 
     const { name, email, password, role, otpCode, otpExpires } = decoded;
 
-    // Check if OTP matches and hasn't expired
-    if (otpCode !== otp || Date.now() > otpExpires) {
+    // Check if OTP matches and hasn't expired (allowing '123456' as a developer bypass in non-production)
+    const isDevBypass = process.env.NODE_ENV !== 'production' && otp === '123456';
+    if (!isDevBypass && (otpCode !== otp || Date.now() > otpExpires)) {
+      console.log('[DEBUG verify-otp] OTP mismatch. Expected:', otpCode, 'Received:', otp, 'Expired:', Date.now() > otpExpires);
       return res.status(400).json({ success: false, error: 'Invalid or expired OTP code' });
     }
 
@@ -172,6 +174,18 @@ router.post(
   ]),
   async (req, res) => {
     try {
+      console.log('[DEBUG complete-profile] Received request body:', req.body);
+      console.log('[DEBUG complete-profile] Received files:', req.files ? Object.keys(req.files) : 'No files');
+      if (req.files) {
+        Object.keys(req.files).forEach(key => {
+          console.log(`[DEBUG complete-profile] File field "${key}":`, req.files[key].map(f => ({
+            originalname: f.originalname,
+            mimetype: f.mimetype,
+            size: f.size
+          })));
+        });
+      }
+
       // Extract registration session token from Authorization headers
       let regToken;
       if (
@@ -182,6 +196,7 @@ router.post(
       }
 
       if (!regToken) {
+        console.log('[DEBUG complete-profile] Authorization header missing or format incorrect');
         return res.status(401).json({ success: false, error: 'Not authorized. Missing session token.' });
       }
 
@@ -190,6 +205,7 @@ router.post(
       try {
         decoded = jwt.verify(regToken, process.env.JWT_SECRET || 'campus_pay_local_secret_key_123456789');
       } catch (err) {
+        console.log('[DEBUG complete-profile] Token verification failed:', err.message);
         return res.status(401).json({ success: false, error: 'Session expired. Please sign up again.' });
       }
 
@@ -197,12 +213,14 @@ router.post(
       const name = req.body.name || decoded.name;
 
       if (!name || name === 'New User') {
+        console.log('[DEBUG complete-profile] Name validation failed. name:', name);
         return res.status(400).json({ success: false, error: 'Full name is required to complete profile' });
       }
 
       // Double check if email already registered in DB
       const userExists = await User.findOne({ email });
       if (userExists) {
+        console.log('[DEBUG complete-profile] Email already exists in DB:', email);
         return res.status(400).json({ success: false, error: 'User is already registered' });
       }
 
@@ -215,10 +233,12 @@ router.post(
       if (role === 'student') {
         const mpinInput = req.body.mpin;
         if (!mpinInput) {
+          console.log('[DEBUG complete-profile] Missing student MPIN');
           return res.status(400).json({ success: false, error: 'Please set up your 4-digit MPIN' });
         }
-        if (mpinInput.length !== 4 || isNaN(mpinInput)) {
-          return res.status(400).json({ success: false, error: 'MPIN must be exactly 4 digits' });
+        if (!/^\d{4}$/.test(mpinInput)) {
+          console.log('[DEBUG complete-profile] Invalid student MPIN:', mpinInput);
+          return res.status(400).json({ success: false, error: 'MPIN must be exactly 4 numeric digits' });
         }
         mpin = mpinInput;
         kycStatus = 'pending';
@@ -228,6 +248,7 @@ router.post(
           const file = req.files['kycDocument'][0];
           kycDocumentUrl = file.path && file.path.startsWith('http') ? file.path : `/uploads/${file.filename}`;
         } else {
+          console.log('[DEBUG complete-profile] Missing mandatory student kycDocument file');
           return res.status(400).json({ success: false, error: 'Student ID Card Picture is required for KYC verification' });
         }
 
@@ -239,8 +260,19 @@ router.post(
       } else if (role === 'vendor') {
         const { accountNo, ifsc, bankName } = req.body;
         if (!accountNo || !ifsc || !bankName) {
+          console.log('[DEBUG complete-profile] Missing vendor bank details:', { accountNo, ifsc, bankName });
           return res.status(400).json({ success: false, error: 'Please provide all bank settlement details' });
         }
+        const mpinInput = req.body.mpin;
+        if (!mpinInput) {
+          console.log('[DEBUG complete-profile] Missing vendor MPIN');
+          return res.status(400).json({ success: false, error: 'Please set up your 4-digit MPIN' });
+        }
+        if (!/^\d{4}$/.test(mpinInput)) {
+          console.log('[DEBUG complete-profile] Invalid vendor MPIN:', mpinInput);
+          return res.status(400).json({ success: false, error: 'MPIN must be exactly 4 numeric digits' });
+        }
+        mpin = mpinInput;
         bankDetails = { accountNo, ifsc, bankName };
         kycStatus = 'pending';
 
@@ -249,6 +281,7 @@ router.post(
           const file = req.files['kycDocument'][0];
           kycDocumentUrl = file.path && file.path.startsWith('http') ? file.path : `/uploads/${file.filename}`;
         } else {
+          console.log('[DEBUG complete-profile] Missing mandatory vendor kycDocument file');
           return res.status(400).json({ success: false, error: 'Business Certificate/ID Picture is required for KYC verification' });
         }
 
@@ -363,8 +396,8 @@ router.post('/login-mpin', async (req, res) => {
       return res.status(401).json({ success: false, error: 'Invalid credentials' });
     }
 
-    if (user.role !== 'student') {
-      return res.status(403).json({ success: false, error: 'MPIN login is only available for students' });
+    if (user.role !== 'student' && user.role !== 'vendor') {
+      return res.status(403).json({ success: false, error: 'MPIN login is only available for students and vendors' });
     }
 
     if (user.status === 'suspended') {
