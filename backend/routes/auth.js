@@ -25,6 +25,31 @@ const generateToken = (id) => {
   });
 };
 
+// Helper: Format User Response (overwrites walletBalance for students with central institute balance)
+const formatUserResponse = async (user) => {
+  let walletBalance = user.walletBalance;
+  if (user.role === 'student') {
+    const { getInstituteFund } = require('../utils/fund');
+    const fund = await getInstituteFund();
+    walletBalance = fund.balance;
+  }
+  return {
+    id: user._id,
+    name: user.name,
+    email: user.email,
+    role: user.role,
+    profileImage: user.profileImage,
+    kycStatus: user.kycStatus,
+    kycDocument: user.kycDocument,
+    bankDetails: user.bankDetails,
+    walletBalance,
+    totalEarnings: user.totalEarnings,
+    status: user.status,
+    hasWebAuthn: user.webauthnCredentials ? user.webauthnCredentials.length > 0 : false,
+  };
+};
+
+
 // Helper: Generate temporary signed signup token
 const generateSignupToken = (payload) => {
   return jwt.sign(payload, process.env.JWT_SECRET || 'campus_pay_local_secret_key_123456789', {
@@ -38,9 +63,11 @@ router.post('/signup', async (req, res) => {
   try {
     const { name, email, password, role } = req.body;
 
-    if (!name || !email || !password) {
+    if (!email || !password) {
       return res.status(400).json({ success: false, error: 'Please enter all basic registration details' });
     }
+
+    const userName = name || 'New User';
 
     // Check if user already exists in DB
     const userExists = await User.findOne({ email });
@@ -57,7 +84,7 @@ router.post('/signup', async (req, res) => {
 
     // Generate signed stateless signup token containing registration details
     const signupToken = generateSignupToken({
-      name,
+      name: userName,
       email,
       password,
       role: role || 'student',
@@ -67,7 +94,7 @@ router.post('/signup', async (req, res) => {
 
     // Send OTP via Email
     const emailHtml = `
-      <p>Dear ${name},</p>
+      <p>Dear User,</p>
       <p>Your CAMPUS-PAY verification code is: <strong>${otpCode}</strong></p>
       <p>This code is valid for 10 minutes. Please enter it on the signup screen to verify your email address.</p>
       <p>Thank you,<br/>CAMPUS-PAY Team</p>
@@ -77,7 +104,7 @@ router.post('/signup', async (req, res) => {
       to: email,
       subject: `Your CAMPUS-PAY Code: ${otpCode}`,
       html: emailHtml,
-      text: `Dear ${name}, Your CAMPUS-PAY verification code is ${otpCode}. It is valid for 10 minutes.`,
+      text: `Dear User, Your CAMPUS-PAY verification code is ${otpCode}. It is valid for 10 minutes.`,
     });
 
     res.status(201).json({
@@ -166,7 +193,12 @@ router.post(
         return res.status(401).json({ success: false, error: 'Session expired. Please sign up again.' });
       }
 
-      const { name, email, password, role } = decoded;
+      const { email, password, role } = decoded;
+      const name = req.body.name || decoded.name;
+
+      if (!name || name === 'New User') {
+        return res.status(400).json({ success: false, error: 'Full name is required to complete profile' });
+      }
 
       // Double check if email already registered in DB
       const userExists = await User.findOne({ email });
@@ -210,7 +242,15 @@ router.post(
           return res.status(400).json({ success: false, error: 'Please provide all bank settlement details' });
         }
         bankDetails = { accountNo, ifsc, bankName };
-        kycStatus = 'approved';
+        kycStatus = 'pending';
+
+        // Mandatory KYC Document for Vendor
+        if (req.files && req.files['kycDocument']) {
+          const file = req.files['kycDocument'][0];
+          kycDocumentUrl = file.path && file.path.startsWith('http') ? file.path : `/uploads/${file.filename}`;
+        } else {
+          return res.status(400).json({ success: false, error: 'Business Certificate/ID Picture is required for KYC verification' });
+        }
 
         // Optional profile photo
         if (req.files && req.files['profileImage']) {
@@ -234,15 +274,15 @@ router.post(
         walletBalance: role === 'student' ? 10000 : 0,
       });
 
-      // Notify all sub-admins if student KYC document is uploaded (excluding super admin per rules)
-      if (user.role === 'student' && user.kycStatus === 'pending') {
+      // Notify all sub-admins if KYC document is uploaded (excluding super admin per rules)
+      if (user.kycStatus === 'pending') {
         try {
           const admins = await User.find({ role: 'subadmin' });
           for (const admin of admins) {
             await Notification.create({
               recipient: admin._id,
-              title: 'New Student KYC Uploaded',
-              message: `${user.name} has registered and uploaded a Student ID card for verification.`,
+              title: `New ${user.role === 'student' ? 'Student' : 'Vendor'} KYC Uploaded`,
+              message: `${user.name} has registered and uploaded a KYC document for verification.`,
               type: 'kyc',
             });
           }
@@ -258,15 +298,7 @@ router.post(
         success: true,
         message: 'Registration completed successfully!',
         token: sessionToken,
-        user: {
-          id: user._id,
-          name: user.name,
-          email: user.email,
-          role: user.role,
-          profileImage: user.profileImage,
-          kycStatus: user.kycStatus,
-          walletBalance: user.walletBalance,
-        },
+        user: await formatUserResponse(user),
       });
     } catch (err) {
       console.error(err);
@@ -308,16 +340,7 @@ router.post('/login', async (req, res) => {
     res.status(200).json({
       success: true,
       token,
-      user: {
-        id: user._id,
-        name: user.name,
-        email: user.email,
-        role: user.role,
-        profileImage: user.profileImage,
-        kycStatus: user.kycStatus,
-        walletBalance: user.walletBalance,
-        status: user.status,
-      },
+      user: await formatUserResponse(user),
     });
   } catch (err) {
     console.error(err);
@@ -358,15 +381,7 @@ router.post('/login-mpin', async (req, res) => {
     res.status(200).json({
       success: true,
       token,
-      user: {
-        id: user._id,
-        name: user.name,
-        email: user.email,
-        role: user.role,
-        profileImage: user.profileImage,
-        walletBalance: user.walletBalance,
-        status: user.status,
-      },
+      user: await formatUserResponse(user),
     });
   } catch (err) {
     console.error(err);
@@ -570,13 +585,7 @@ router.post('/webauthn/login-verify', async (req, res) => {
       return res.json({
         success: true,
         token,
-        user: {
-          id: user._id,
-          name: user.name,
-          email: user.email,
-          role: user.role,
-          walletBalance: user.walletBalance,
-        },
+        user: await formatUserResponse(user),
       });
     }
 
@@ -613,14 +622,7 @@ router.post('/webauthn/login-verify', async (req, res) => {
       res.status(200).json({
         success: true,
         token,
-        user: {
-          id: user._id,
-          name: user.name,
-          email: user.email,
-          role: user.role,
-          profileImage: user.profileImage,
-          walletBalance: user.walletBalance,
-        },
+        user: await formatUserResponse(user),
       });
     } catch (verifyError) {
       console.warn('Fido2 verification assertion failed:', verifyError);
@@ -642,20 +644,7 @@ router.get('/me', protect, async (req, res) => {
     }
     res.status(200).json({
       success: true,
-      user: {
-        id: user._id,
-        name: user.name,
-        email: user.email,
-        role: user.role,
-        profileImage: user.profileImage,
-        kycStatus: user.kycStatus,
-        kycDocument: user.kycDocument,
-        bankDetails: user.bankDetails,
-        walletBalance: user.walletBalance,
-        totalEarnings: user.totalEarnings,
-        status: user.status,
-        hasWebAuthn: user.webauthnCredentials.length > 0,
-      },
+      user: await formatUserResponse(user),
     });
   } catch (err) {
     console.error(err);
@@ -781,20 +770,7 @@ router.put('/update-profile', protect, upload.single('profileImage'), async (req
     res.status(200).json({
       success: true,
       message: 'Profile updated successfully!',
-      user: {
-        id: user._id,
-        name: user.name,
-        email: user.email,
-        role: user.role,
-        profileImage: user.profileImage,
-        kycStatus: user.kycStatus,
-        kycDocument: user.kycDocument,
-        bankDetails: user.bankDetails,
-        walletBalance: user.walletBalance,
-        totalEarnings: user.totalEarnings,
-        status: user.status,
-        hasWebAuthn: user.webauthnCredentials.length > 0,
-      },
+      user: await formatUserResponse(user),
     });
   } catch (err) {
     console.error(err);

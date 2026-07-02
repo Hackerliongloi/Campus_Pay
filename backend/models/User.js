@@ -61,6 +61,11 @@ const UserSchema = new mongoose.Schema({
     type: String,
     default: '',
   },
+  kycVerifiedBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    default: null,
+  },
   bankDetails: {
     accountNo: { type: String, default: '' },
     ifsc: { type: String, default: '' },

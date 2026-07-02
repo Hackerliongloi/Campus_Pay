@@ -43,7 +43,23 @@ router.get('/users', async (req, res) => {
       ];
     }
 
-    const users = await User.find(query).sort({ createdAt: -1 });
+    let users = await User.find(query).sort({ createdAt: -1 });
+
+    if (role === 'subadmin') {
+      const Complaint = require('../models/Complaint');
+      users = await Promise.all(
+        users.map(async (u) => {
+          const kycVerifiedCount = await User.countDocuments({ kycVerifiedBy: u._id });
+          const complaintsSolvedCount = await Complaint.countDocuments({ resolvedBy: u._id, status: 'resolved' });
+
+          const uObj = u.toObject();
+          uObj.kycVerifiedCount = kycVerifiedCount;
+          uObj.complaintsSolvedCount = complaintsSolvedCount;
+          return uObj;
+        })
+      );
+    }
+
     res.status(200).json({ success: true, count: users.length, users });
   } catch (err) {
     console.error(err);
@@ -114,32 +130,10 @@ router.post('/users/status', async (req, res) => {
   }
 });
 
-// @desc    Admin Reset Student MPIN
+// @desc    Admin Reset Student MPIN (DISABLED)
 // @route   POST /api/admin/users/reset-mpin
 router.post('/users/reset-mpin', async (req, res) => {
-  try {
-    if (req.user.role !== 'admin') {
-      return res.status(403).json({ success: false, error: 'Only main administrator is authorized to reset MPIN' });
-    }
-    const { userId, newMpin } = req.body;
-
-    if (!newMpin || newMpin.length !== 4 || isNaN(newMpin)) {
-      return res.status(400).json({ success: false, error: 'MPIN must be exactly 4 digits' });
-    }
-
-    const user = await User.findById(userId);
-    if (!user || user.role !== 'student') {
-      return res.status(404).json({ success: false, error: 'Student account not found' });
-    }
-
-    user.mpin = newMpin; // Schema's pre-save middleware will hash this automatically!
-    await user.save();
-
-    res.status(200).json({ success: true, message: `MPIN for ${user.name} reset successfully` });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ success: false, error: 'Failed to reset MPIN' });
-  }
+  return res.status(403).json({ success: false, error: 'MPIN resets by administrators are no longer permitted to protect student security.' });
 });
 
 /* ==========================================================================
@@ -210,6 +204,7 @@ router.post('/kyc-approve', async (req, res) => {
     }
 
     targetUser.kycStatus = action === 'approve' ? 'approved' : 'rejected';
+    targetUser.kycVerifiedBy = req.user.id;
     await targetUser.save();
 
     // Notify the user about their KYC update
@@ -376,9 +371,15 @@ router.get('/analytics', async (req, res) => {
       .sort({ createdAt: -1 })
       .limit(5);
 
+    // Fetch central institute balance
+    const { getInstituteFund } = require('../utils/fund');
+    const fund = await getInstituteFund();
+    const instituteBalance = fund.balance;
+
     res.status(200).json({
       success: true,
       analytics: {
+        instituteBalance,
         users: {
           students: studentCount,
           vendors: vendorCount,
@@ -403,53 +404,10 @@ router.get('/analytics', async (req, res) => {
   }
 });
 
-// @desc    Allocate / Add funds to a student wallet (Admin only)
+// @desc    Allocate / Add funds to a student wallet (DISABLED)
 // @route   POST /api/admin/allocate-funds
 router.post('/allocate-funds', async (req, res) => {
-  try {
-    if (req.user.role !== 'admin') {
-      return res.status(403).json({ success: false, error: 'Only main administrator is authorized to allocate funds' });
-    }
-    const { studentEmail, amount, description } = req.body;
-    const parsedAmount = parseFloat(amount);
-
-    if (!studentEmail || isNaN(parsedAmount) || parsedAmount <= 0) {
-      return res.status(400).json({ success: false, error: 'Please enter a valid student email and a positive amount' });
-    }
-
-    const student = await User.findOne({ email: studentEmail, role: 'student' });
-    if (!student) {
-      return res.status(404).json({ success: false, error: 'Student account not found' });
-    }
-
-    if (student.status !== 'active') {
-      return res.status(400).json({ success: false, error: `Cannot allocate funds. Student account is ${student.status}` });
-    }
-
-    // Allocate funds atomically
-    student.walletBalance += parsedAmount;
-    await student.save();
-
-    // Create transaction log
-    const transaction = await Transaction.create({
-      sender: null, // external load / institute allocation
-      receiver: student._id,
-      amount: parsedAmount,
-      type: 'add',
-      status: 'success',
-      description: description || 'Institute Fund Allocation',
-    });
-
-    res.status(200).json({
-      success: true,
-      message: `Successfully allocated ₹${parsedAmount} to ${student.name}`,
-      balance: student.walletBalance,
-      transaction,
-    });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ success: false, error: 'Failed to allocate funds. Server error.' });
-  }
+  return res.status(400).json({ success: false, error: 'Individual student fund allocations are disabled. Students draw directly from the central Institute Balance instead.' });
 });
 
 // @desc    Get all pending vendor redeem requests
@@ -545,60 +503,92 @@ router.post('/redeem-approve', async (req, res) => {
   }
 });
 
-// @desc    Add institute balance to student
+// @desc    Add institute balance to student (DISABLED)
 // @route   POST /api/admin/add-balance
 router.post('/add-balance', async (req, res) => {
+  return res.status(400).json({ success: false, error: 'Direct student balance additions are disabled. Use the Central Institute Fund loading panel instead.' });
+});
+
+// @desc    Add central funds to Institute Balance (Admin only)
+// @route   POST /api/admin/add-institute-funds
+router.post('/add-institute-funds', async (req, res) => {
   try {
-    const { studentId, amount, description } = req.body;
+    if (req.user.role !== 'admin') {
+      return res.status(403).json({ success: false, error: 'Only main administrator is authorized to load institute funds' });
+    }
+    const { amount, description } = req.body;
     const parsedAmount = parseFloat(amount);
 
     if (isNaN(parsedAmount) || parsedAmount <= 0) {
       return res.status(400).json({ success: false, error: 'Please enter a valid positive amount' });
     }
 
-    const student = await User.findOne({ _id: studentId, role: 'student' });
-    if (!student) {
-      return res.status(404).json({ success: false, error: 'Student account not found' });
-    }
+    // Load funds
+    const { getInstituteFund } = require('../utils/fund');
+    const fund = await getInstituteFund();
 
-    if (student.status !== 'active') {
-      return res.status(400).json({ success: false, error: `Cannot add balance. Student account is ${student.status}` });
-    }
-
-    student.walletBalance += parsedAmount;
-    await student.save();
+    const InstituteFund = require('../models/InstituteFund');
+    const fundUpdate = await InstituteFund.findOneAndUpdate(
+      { _id: fund._id },
+      { $inc: { balance: parsedAmount } },
+      { new: true }
+    );
 
     // Create transaction log
     const transaction = await Transaction.create({
-      sender: null,
-      receiver: student._id,
+      sender: req.user.id, // recorded as added by this admin
+      receiver: null,
       amount: parsedAmount,
-      type: 'add',
+      type: 'add_institute_funds',
       status: 'success',
-      description: description || `Institute Balance Added by ${req.user.name}`,
+      description: description || 'Add Institute Funds',
     });
-
-    // Notify student
-    try {
-      await Notification.create({
-        recipient: student._id,
-        title: 'Institute Balance Added',
-        message: `₹${parsedAmount.toFixed(2)} has been added to your institute wallet balance by ${req.user.name}.`,
-        type: 'transaction',
-      });
-    } catch (notifErr) {
-      console.error('Failed to create balance notification:', notifErr);
-    }
 
     res.status(200).json({
       success: true,
-      message: `Successfully added ₹${parsedAmount.toFixed(2)} to ${student.name}'s balance.`,
-      balance: student.walletBalance,
+      message: `Successfully added ₹${parsedAmount.toFixed(2)} to central Institute Balance.`,
+      balance: fundUpdate.balance,
       transaction,
     });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ success: false, error: 'Failed to add balance. Server error.' });
+    res.status(500).json({ success: false, error: 'Failed to add institute funds' });
+  }
+});
+
+// @desc    Get Institute Funds Addition History (Admin/Sub-admin)
+// @route   GET /api/admin/institute-funds/history
+router.get('/institute-funds/history', async (req, res) => {
+  try {
+    const { search } = req.query;
+    let history = await Transaction.find({ type: 'add_institute_funds' })
+      .populate('sender', 'name email')
+      .sort({ createdAt: -1 });
+
+    if (search) {
+      const searchLower = search.toLowerCase();
+      history = history.filter((item) => {
+        const descMatch = item.description && item.description.toLowerCase().includes(searchLower);
+        const idMatch = item.transaction_id && item.transaction_id.toLowerCase().includes(searchLower);
+        const nameMatch = item.sender && item.sender.name && item.sender.name.toLowerCase().includes(searchLower);
+        const emailMatch = item.sender && item.sender.email && item.sender.email.toLowerCase().includes(searchLower);
+        
+        // Date match (Locale specific string searches)
+        const dateObj = new Date(item.createdAt);
+        const dateMatch = dateObj.toLocaleDateString('en-IN').toLowerCase().includes(searchLower) ||
+                          dateObj.toLocaleString('en-IN').toLowerCase().includes(searchLower);
+
+        return descMatch || idMatch || nameMatch || emailMatch || dateMatch;
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      history,
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, error: 'Failed to retrieve funds history' });
   }
 });
 
@@ -678,6 +668,64 @@ router.delete('/subadmins/:id', async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ success: false, error: 'Failed to delete sub-admin. Server error.' });
+  }
+});
+
+// @desc    Get system-wide notification log
+// @route   GET /api/admin/notifications
+router.get('/notifications', async (req, res) => {
+  try {
+    if (req.user.role !== 'admin') {
+      return res.status(403).json({ success: false, error: 'Access denied. Super Admin role required.' });
+    }
+    const { search } = req.query;
+    let query = {};
+
+    if (search) {
+      // Find users matching search to filter by recipient
+      const matchingUsers = await User.find({
+        $or: [
+          { name: { $regex: search, $options: 'i' } },
+          { email: { $regex: search, $options: 'i' } }
+        ]
+      }).select('_id');
+      const userIds = matchingUsers.map(u => u._id);
+
+      query.$or = [
+        { title: { $regex: search, $options: 'i' } },
+        { message: { $regex: search, $options: 'i' } },
+        { recipient: { $in: userIds } }
+      ];
+    }
+
+    // Sub-admins are restricted to student recipient notifications only
+    if (req.user.role === 'subadmin') {
+      const studentUsers = await User.find({ role: 'student' }).select('_id');
+      const studentIds = studentUsers.map(u => u._id);
+      if (query.$or) {
+        query = {
+          $and: [
+            { $or: query.$or },
+            { recipient: { $in: studentIds } }
+          ]
+        };
+      } else {
+        query.recipient = { $in: studentIds };
+      }
+    }
+
+    const notifications = await Notification.find(query)
+      .populate('recipient', 'name email role profileImage')
+      .sort({ createdAt: -1 });
+
+    res.status(200).json({
+      success: true,
+      count: notifications.length,
+      notifications
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, error: 'Failed to retrieve notification logs' });
   }
 });
 

@@ -64,15 +64,23 @@ router.post('/transfer', protect, authorize('student'), async (req, res) => {
       return res.status(400).json({ success: false, error: 'Receiver account has been suspended' });
     }
 
-    // Deduct from sender atomically, enforcing balance constraint
-    const senderUpdate = await User.findOneAndUpdate(
-      { _id: req.user.id, walletBalance: { $gte: parsedAmount } },
-      { $inc: { walletBalance: -parsedAmount } },
+    // Deduct from central Institute Fund atomically
+    const { getInstituteFund } = require('../utils/fund');
+    const fund = await getInstituteFund();
+
+    if (fund.balance < parsedAmount) {
+      return res.status(400).json({ success: false, error: 'Insufficient Institute Balance' });
+    }
+
+    const InstituteFund = require('../models/InstituteFund');
+    const fundUpdate = await InstituteFund.findOneAndUpdate(
+      { _id: fund._id, balance: { $gte: parsedAmount } },
+      { $inc: { balance: -parsedAmount } },
       { new: true }
     );
 
-    if (!senderUpdate) {
-      return res.status(400).json({ success: false, error: 'Insufficient wallet balance' });
+    if (!fundUpdate) {
+      return res.status(400).json({ success: false, error: 'Insufficient Institute Balance' });
     }
 
     // Determine type (transfer to student or payment to vendor)
@@ -123,7 +131,7 @@ router.post('/transfer', protect, authorize('student'), async (req, res) => {
     res.status(200).json({
       success: true,
       message: `Successfully transferred ₹${parsedAmount} to ${receiver.name}`,
-      balance: senderUpdate.walletBalance,
+      balance: fundUpdate.balance,
       transaction,
     });
   } catch (err) {
